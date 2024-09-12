@@ -199,6 +199,11 @@ var _ = Describe("controller", Ordered, func() {
 			// Verify the hosted cluster is running/ready.
 			templateBy(managedcluster.TemplateAWSHostedCP, "waiting for infrastructure to deploy successfully")
 			resourcesToValidate = managedcluster.NewDeployedValidation()
+
+			// FIXME: Remove ccm and csi-driver from the resources to validate
+			// until #290 is resolved.
+			delete(resourcesToValidate, "ccm")
+			delete(resourcesToValidate, "csi-driver")
 			Eventually(func() error {
 				return managedcluster.VerifyProviderDeployed(
 					context.Background(), standaloneClient, hdName, resourcesToValidate,

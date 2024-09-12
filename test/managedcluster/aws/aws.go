@@ -19,7 +19,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 
@@ -108,8 +107,6 @@ func PopulateHostedTemplateVars(ctx context.Context, kc *kubeclient.KubeClient) 
 
 func PatchAWSClusterReady(ctx context.Context, kc *kubeclient.KubeClient, clusterName string) error {
 	GinkgoHelper()
-
-	_, _ = fmt.Fprintf(GinkgoWriter, "Patching AWS cluster %q to ready\n", clusterName)
 
 	c := getAWSClusterClient(kc)
 

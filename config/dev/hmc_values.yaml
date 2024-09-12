@@ -1,7 +1,7 @@
 image:
-  repository: hmc/controller
-  tag: latest
+  repository: ghcr.io/mirantis/hmc/controller-ci
+  tag: v0.0.1-182-g1f17193
 controller:
-  defaultRegistryURL: oci://hmc-local-registry:5000/charts
+  defaultRegistryURL: oci://ghcr.io/mirantis/hmc/charts-ci
   insecureRegistry: true
   createTemplates: false
