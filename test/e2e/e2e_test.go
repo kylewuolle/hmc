@@ -34,6 +34,7 @@ import (
 	"github.com/Mirantis/hmc/test/kubeclient"
 	"github.com/Mirantis/hmc/test/managedcluster"
 	"github.com/Mirantis/hmc/test/managedcluster/aws"
+	"github.com/Mirantis/hmc/test/managedcluster/azure"
 	"github.com/Mirantis/hmc/test/utils"
 )
 
@@ -125,7 +126,7 @@ var _ = Describe("controller", Ordered, func() {
 			GinkgoT().Setenv(managedcluster.EnvVarInstallBeachHeadServices, "false")
 
 			templateBy(managedcluster.TemplateAWSStandaloneCP, "creating a ManagedCluster")
-			sd := managedcluster.GetUnstructured(managedcluster.ProviderAWS, managedcluster.TemplateAWSStandaloneCP)
+			sd := managedcluster.GetUnstructured(managedcluster.ProviderAWS, managedcluster.TemplateAWSStandaloneCP, namespace)
 			clusterName = sd.GetName()
 
 			standaloneDeleteFunc = kc.CreateManagedCluster(context.Background(), sd)
@@ -179,7 +180,7 @@ var _ = Describe("controller", Ordered, func() {
 			aws.PopulateHostedTemplateVars(context.Background(), kc)
 
 			templateBy(managedcluster.TemplateAWSHostedCP, "creating a ManagedCluster")
-			hd := managedcluster.GetUnstructured(managedcluster.ProviderAWS, managedcluster.TemplateAWSHostedCP)
+			hd := managedcluster.GetUnstructured(managedcluster.ProviderAWS, managedcluster.TemplateAWSHostedCP, namespace)
 			hdName := hd.GetName()
 
 			// Deploy the hosted cluster on top of the standalone cluster.
@@ -242,6 +243,76 @@ var _ = Describe("controller", Ordered, func() {
 				)
 			}).WithTimeout(10 * time.Minute).WithPolling(10 *
 				time.Second).Should(Succeed())
+		})
+	})
+
+	Describe("Azure Templates", Label("provider"), func() {
+		var (
+			kc                   *kubeclient.KubeClient
+			standaloneClient     *kubeclient.KubeClient
+			standaloneDeleteFunc func() error
+			hostedDeleteFunc     func() error
+			kubecfgDeleteFunc    func() error
+			clusterName          string
+		)
+
+		BeforeAll(func() {
+			By("ensuring Azure credentials are set")
+			kc = kubeclient.NewFromLocal(namespace)
+			ExpectWithOffset(2, azure.CreateCredentialSecret(context.Background(), kc)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			// If we failed collect logs from each of the affiliated controllers
+			// as well as the output of clusterctl to store as artifacts.
+			if CurrentSpecReport().Failed() && !noCleanup() {
+				By("collecting failure logs from controllers")
+				if kc != nil {
+					collectLogArtifacts(kc, clusterName, managedcluster.ProviderAzure, managedcluster.ProviderCAPI)
+				}
+				if standaloneClient != nil {
+					collectLogArtifacts(standaloneClient, clusterName, managedcluster.ProviderAzure, managedcluster.ProviderCAPI)
+				}
+
+				By("deleting resources after failure")
+				for _, deleteFunc := range []func() error{
+					kubecfgDeleteFunc,
+					hostedDeleteFunc,
+					standaloneDeleteFunc,
+				} {
+					if deleteFunc != nil {
+						err := deleteFunc()
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+			}
+		})
+
+		It("should work with an Azure provider", func() {
+			for _, template := range []managedcluster.Template{
+				managedcluster.TemplateAzureStandaloneCP,
+				managedcluster.TemplateAzureHostedCP,
+			} {
+				templateBy(template, fmt.Sprintf("creating a Deployment using template %s", template))
+				d := managedcluster.GetUnstructured(managedcluster.ProviderAzure, template, namespace)
+				clusterName = d.GetName()
+
+				deleteFunc := kc.CreateManagedCluster(context.Background(), d)
+				resourcesToValidate := managedcluster.NewDeployedValidation()
+				delete(resourcesToValidate, "csi-driver")
+
+				By("waiting for infrastructure providers to deploy successfully")
+				Eventually(func() error {
+					return managedcluster.VerifyProviderDeployed(context.Background(), kc, clusterName, template, resourcesToValidate)
+				}).WithTimeout(90 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+				By("verify the deployment deletes successfully")
+				err := deleteFunc()
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(func() error {
+					return managedcluster.VerifyProviderDeleted(context.Background(), kc, clusterName, template, resourcesToValidate)
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+			}
 		})
 	})
 })

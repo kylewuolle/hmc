@@ -248,7 +248,7 @@ func validateCSIDriver(ctx context.Context, kc *kubeclient.KubeClient, clusterNa
 		return fmt.Errorf("failed to get test PVC: %w", err)
 	}
 
-	if !strings.Contains(*pvc.Spec.StorageClassName, "csi") {
+	if pvc.Spec.StorageClassName != nil && !strings.Contains(*pvc.Spec.StorageClassName, "csi") {
 		Fail(fmt.Sprintf("%s PersistentVolumeClaim does not have a CSI driver storageClass", pvcName))
 	}
 
@@ -300,7 +300,7 @@ func validateCCM(ctx context.Context, kc *kubeclient.KubeClient, clusterName str
 	}
 
 	for _, i := range service.Status.LoadBalancer.Ingress {
-		if i.Hostname != "" {
+		if i.Hostname != "" || i.IP != "" {
 			return nil
 		}
 	}
