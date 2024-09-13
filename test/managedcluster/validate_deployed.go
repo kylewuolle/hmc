@@ -49,8 +49,8 @@ func NewDeployedValidation() map[string]resourceValidationFunc {
 // It is intended to be used in conjunction with an Eventually block.
 func VerifyProviderDeployed(
 	ctx context.Context, kc *kubeclient.KubeClient, clusterName string,
-	resourceValidationMap map[string]resourceValidationFunc) error {
-	return verifyProviderAction(ctx, kc, clusterName, resourceValidationMap,
+	templateName Template, resourceValidationMap map[string]resourceValidationFunc) error {
+	return verifyProviderAction(ctx, kc, clusterName, templateName, resourceValidationMap,
 		[]string{"clusters", "machines", "control-planes", "csi-driver", "ccm"})
 }
 
@@ -64,7 +64,8 @@ func VerifyProviderDeployed(
 // should be used to end the spec early.
 func verifyProviderAction(
 	ctx context.Context, kc *kubeclient.KubeClient, clusterName string,
-	resourcesToValidate map[string]resourceValidationFunc, order []string) error {
+	templateName Template, resourcesToValidate map[string]resourceValidationFunc,
+	order []string) error {
 	// Sequentially validate each resource type, only returning the first error
 	// as to not move on to the next resource type until the first is resolved.
 	// We use []string here since order is important.
@@ -75,11 +76,11 @@ func verifyProviderAction(
 		}
 
 		if err := validator(ctx, kc, clusterName); err != nil {
-			_, _ = fmt.Fprintf(GinkgoWriter, "[%s] validation error: %v\n", name, err)
+			_, _ = fmt.Fprintf(GinkgoWriter, "[%s/%s] validation error: %v\n", templateName, name, err)
 			return err
 		}
 
-		_, _ = fmt.Fprintf(GinkgoWriter, "[%s] validation succeeded\n", name)
+		_, _ = fmt.Fprintf(GinkgoWriter, "[%s/%s] validation succeeded\n", templateName, name)
 		delete(resourcesToValidate, name)
 	}
 

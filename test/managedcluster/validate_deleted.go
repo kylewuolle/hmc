@@ -36,8 +36,8 @@ func NewDeletionValidation() map[string]resourceValidationFunc {
 // It is intended to be used in conjunction with an Eventually block.
 func VerifyProviderDeleted(
 	ctx context.Context, kc *kubeclient.KubeClient, clusterName string,
-	resourcesToValidate map[string]resourceValidationFunc) error {
-	return verifyProviderAction(ctx, kc, clusterName, resourcesToValidate,
+	templateName Template, resourcesToValidate map[string]resourceValidationFunc) error {
+	return verifyProviderAction(ctx, kc, clusterName, templateName, resourcesToValidate,
 		[]string{"clusters", "machinedeployments", "control-planes"})
 }
 
@@ -56,7 +56,7 @@ func validateClusterDeleted(ctx context.Context, kc *kubeclient.KubeClient, clus
 			// like this, we probably don't want to wait the full Eventually
 			// for something like this, but we can't immediately fail the test
 			// either.
-			return fmt.Errorf("cluster %q exists, but is not in 'Deleting' phase", clusterName)
+			return fmt.Errorf("cluster: %q exists, but is not in 'Deleting' phase", clusterName)
 		}
 
 		conditions, err := utils.GetConditionsFromUnstructured(cluster)
