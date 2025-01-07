@@ -56,7 +56,7 @@ spec:
                 - --allocate-node-cidrs=true
                 - --cluster-name={{ include "cluster.name" . }}
               cloudConfig:
-                enabled: {{ ne .Values.managementClusterName "" }}
+                enabled: true
                 global:
                   KubernetesClusterID: {{ .Values.managementClusterName }}
               # Removing the default `node-role.kubernetes.io/control-plane` node selector

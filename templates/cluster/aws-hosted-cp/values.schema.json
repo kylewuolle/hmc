@@ -10,7 +10,8 @@
     "iamInstanceProfile",
     "instanceType",
     "securityGroupIDs",
-    "clusterIdentity"
+    "clusterIdentity",
+    "managementClusterName"
   ],
   "properties": {
     "managementClusterName" : {
