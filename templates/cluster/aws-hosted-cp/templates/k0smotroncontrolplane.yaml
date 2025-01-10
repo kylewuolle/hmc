@@ -58,7 +58,7 @@ spec:
               cloudConfig:
                 enabled: true
                 global:
-                  KubernetesClusterID: {{ .Values.managementClusterName }}
+                  KubernetesClusterID: {{ required ".Values.managementClusterName is required on AWS hosted deployment" .Values.managementClusterName }}
               # Removing the default `node-role.kubernetes.io/control-plane` node selector
               # TODO: it does not work
               nodeSelector:
