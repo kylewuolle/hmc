@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/K0rdent/kcm/api/v1alpha1"
 	"github.com/K0rdent/kcm/internal/utils/status"
 )
 
@@ -282,8 +283,8 @@ func (kc *KubeClient) ListK0sControlPlanes(
 
 func (kc *KubeClient) ListClusterTemplates(ctx context.Context) ([]unstructured.Unstructured, error) {
 	client := kc.GetDynamicClient(schema.GroupVersionResource{
-		Group:    "hmc.mirantis.com",
-		Version:  "v1alpha1",
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
 		Resource: "clustertemplates",
 	}, true)
 
@@ -297,11 +298,10 @@ func (kc *KubeClient) ListClusterTemplates(ctx context.Context) ([]unstructured.
 
 func (kc *KubeClient) GetCredential(ctx context.Context, name string) (*unstructured.Unstructured, error) {
 	client := kc.GetDynamicClient(schema.GroupVersionResource{
-		Group:    "hmc.mirantis.com",
-		Version:  "v1alpha1",
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
 		Resource: "credentials",
 	}, true)
-
 	credential, err := client.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credential %s: %w", name, err)
