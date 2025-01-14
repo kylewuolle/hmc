@@ -71,10 +71,11 @@ var _ = Describe("Adopted Cluster Templates", Label("provider:cloud", "provider:
 
 	It("should work with an Adopted cluster provider", func() {
 		// Deploy a standalone cluster and verify it is running/ready. Then, delete the management cluster and
-		// recreate it. Next "adopt" the cluster we created and verify the services were deployed.
+		// recreate it. Next "adopt" the cluster we created and verify the services were deployed. Next we delete
+		// the adopted cluster and finally the management cluster (AWS standalone).
 		GinkgoT().Setenv(clusterdeployment.EnvVarAWSInstanceType, "t3.xlarge")
 
-		templateBy(clusterdeployment.TemplateAWSStandaloneCP, "creating a ManagedCluster")
+		templateBy(clusterdeployment.TemplateAWSStandaloneCP, "creating a ClusterDeployment")
 		sd := clusterdeployment.GetUnstructured(clusterdeployment.TemplateAWSStandaloneCP)
 		clusterName = sd.GetName()
 
@@ -119,7 +120,7 @@ var _ = Describe("Adopted Cluster Templates", Label("provider:cloud", "provider:
 		Expect(err).NotTo(HaveOccurred())
 		adoptedDeleteFunc = nil
 
-		// finally delete the aws standalone cluster
+		// finally delete the aws standalone cluster and verify it's deleted correctly
 		err = clusterDeleteFunc()
 		Expect(err).NotTo(HaveOccurred())
 		clusterDeleteFunc = nil
