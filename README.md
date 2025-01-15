@@ -1,8 +1,8 @@
-# Mirantis Hybrid Multi Cluster (KCM), Codename: Project 0x2A
+# k0rdent Cluster Manager (KCM)
 
 ## Overview
 
-Mirantis Hybrid Multi Cluster is part of Mirantis Project 0x2A which is focused
+k0rdent Cluster Manager is part of k0rdent which is focused
 on delivering a open source approach to providing an enterprise grade
 multi-cluster kubernetes management solution based entirely on standard open
 source tooling that works across private or public clouds.
@@ -20,13 +20,13 @@ Detailed documentation is available in [K0rdent Docs](https://k0rdent.github.io/
 ### TL;DR
 
 ```bash
-kubectl apply -f https://github.com/K0rdent/kcm/releases/download/v0.0.6/install.yaml
+kubectl apply -f https://github.com/K0rdent/kcm/releases/download/v0.0.7/install.yaml
 ```
 
 or install using `helm`
 
 ```bash
-helm install kcm oci://ghcr.io/k0rdent/kcm/charts/kcm --version 0.0.6 -n kcm-system --create-namespace
+helm install kcm oci://ghcr.io/k0rdent/kcm/charts/kcm --version 0.0.7 -n kcm-system --create-namespace
 ```
 
 Then follow the [Deploy a cluster deployment](#create-a-clusterdeployment) guide to
@@ -43,7 +43,7 @@ See [Install KCM for development purposes](docs/dev.md#kcm-installation-for-deve
 
 ### Software Prerequisites
 
-Mirantis Hybrid Container Cloud requires the following:
+Mirantis kcm requires the following:
 
 1. Existing management cluster (minimum required kubernetes version 1.28.0).
 2. `kubectl` CLI installed locally.
@@ -68,7 +68,7 @@ helm install kcm oci://ghcr.io/k0rdent/kcm/charts/kcm --version <kcm-version> -n
 
 #### Extended Management configuration
 
-By default, the Hybrid Container Cloud is being deployed with the following
+By default, kcm is being deployed with the following
 configuration:
 
 ```yaml
@@ -217,7 +217,7 @@ spec:
       iamInstanceProfile: nodes.cluster-api-provider-aws.sigs.k8s.io
       instanceType: ""
     workersNumber: 2
-  template: aws-standalone-cp-0-0-4
+  template: aws-standalone-cp-0-0-5
   credential: aws-credential
   dryRun: true
 ```
@@ -235,7 +235,7 @@ metadata:
   name: aws-standalone
   namespace: kcm-system
 spec:
-  template: aws-standalone-cp-0-0-4
+  template: aws-standalone-cp-0-0-5
   credential: aws-credential
   config:
     region: us-east-2
