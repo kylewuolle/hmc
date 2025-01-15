@@ -184,6 +184,7 @@ func collectLogArtifacts(kc *kubeclient.KubeClient, clusterName string, provider
 		}
 	}
 
+	filterLabels = append(filterLabels, "app=source-controller")
 	for _, label := range filterLabels {
 		pods, _ := kc.Client.CoreV1().Pods(kc.Namespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: label,
