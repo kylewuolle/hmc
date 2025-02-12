@@ -152,7 +152,7 @@
           "type": "string"
         },
         "network": {
-          "type": "string"
+          "type": "object"
         }
       }
     },
@@ -196,7 +196,7 @@
           "type": "string"
         },
         "network": {
-          "type": "string"
+          "type": "object"
         }
       }
     },

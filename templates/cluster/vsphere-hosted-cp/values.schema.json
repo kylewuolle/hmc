@@ -146,7 +146,7 @@
       "type": "string"
     },
     "network": {
-      "type": "string"
+      "type": "object"
     },
     "k0s": {
       "description": "K0s parameters",
