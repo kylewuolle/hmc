@@ -394,7 +394,10 @@ func (r *ReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-
+	//
+	if !r.CreateManagement && !r.CreateRelease {
+		return nil
+	}
 	// There's no Release objects created yet and we need to trigger reconcile
 	initChannel := make(chan event.GenericEvent, 1)
 	initChannel <- event.GenericEvent{Object: &kcm.Release{}}
