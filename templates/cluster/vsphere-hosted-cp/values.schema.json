@@ -146,7 +146,35 @@
       "type": "string"
     },
     "network": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "ipam": {
+          "type": "object",
+          "properties": {
+            "addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "subnet": {
+              "type": "string"
+            },
+            "first": {
+              "type": "string"
+            },
+            "last": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "gateway": {
+              "type": "string"
+            }
+          }
+        }
+      }
     },
     "k0s": {
       "description": "K0s parameters",

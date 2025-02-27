@@ -6,7 +6,7 @@ metadata:
   {{- include "kcm.labels" . | nindent 4 }}
 rules:
 - apiGroups:
-    - ipam.cluster.x-k8s.io/v1alpha1
+    - ipam.cluster.x-k8s.io/v1alpha2
   resources:
     - inclusterippools
   verbs: {{ include "rbac.editorVerbs" . | nindent 4 }}
