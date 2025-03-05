@@ -138,28 +138,29 @@ func (r *MultiClusterServiceReconciler) reconcileUpdate(ctx context.Context, mcs
 		return ctrl.Result{}, err
 	}
 
-	if _, err = sveltos.ReconcileClusterProfile(ctx, r.Client, mcs.Name,
-		sveltos.ReconcileProfileOpts{
-			OwnerReference: &metav1.OwnerReference{
-				APIVersion: kcm.GroupVersion.String(),
-				Kind:       kcm.MultiClusterServiceKind,
-				Name:       mcs.Name,
-				UID:        mcs.UID,
-			},
-			LabelSelector:        mcs.Spec.ClusterSelector,
-			HelmChartOpts:        opts,
-			Priority:             mcs.Spec.ServiceSpec.Priority,
-			StopOnConflict:       mcs.Spec.ServiceSpec.StopOnConflict,
-			Reload:               mcs.Spec.ServiceSpec.Reload,
-			TemplateResourceRefs: mcs.Spec.ServiceSpec.TemplateResourceRefs,
-			SyncMode:             mcs.Spec.ServiceSpec.SyncMode,
-			DriftIgnore:          mcs.Spec.ServiceSpec.DriftIgnore,
-			DriftExclusions:      mcs.Spec.ServiceSpec.DriftExclusions,
-			ContinueOnError:      mcs.Spec.ServiceSpec.ContinueOnError,
-		}); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to reconcile ClusterProfile: %w", err)
+	if len(mcs.Spec.ServiceSpec.Services) > 0 {
+		if _, err = sveltos.ReconcileClusterProfile(ctx, r.Client, mcs.Name,
+			sveltos.ReconcileProfileOpts{
+				OwnerReference: &metav1.OwnerReference{
+					APIVersion: kcm.GroupVersion.String(),
+					Kind:       kcm.MultiClusterServiceKind,
+					Name:       mcs.Name,
+					UID:        mcs.UID,
+				},
+				LabelSelector:        mcs.Spec.ClusterSelector,
+				HelmChartOpts:        opts,
+				Priority:             mcs.Spec.ServiceSpec.Priority,
+				StopOnConflict:       mcs.Spec.ServiceSpec.StopOnConflict,
+				Reload:               mcs.Spec.ServiceSpec.Reload,
+				TemplateResourceRefs: mcs.Spec.ServiceSpec.TemplateResourceRefs,
+				SyncMode:             mcs.Spec.ServiceSpec.SyncMode,
+				DriftIgnore:          mcs.Spec.ServiceSpec.DriftIgnore,
+				DriftExclusions:      mcs.Spec.ServiceSpec.DriftExclusions,
+				ContinueOnError:      mcs.Spec.ServiceSpec.ContinueOnError,
+			}); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to reconcile ClusterProfile: %w", err)
+		}
 	}
-
 	// NOTE:
 	// We are returning nil in the return statements whenever servicesErr != nil
 	// because we don't want the error content in servicesErr to be assigned to err.
@@ -172,13 +173,20 @@ func (r *MultiClusterServiceReconciler) reconcileUpdate(ctx context.Context, mcs
 		return ctrl.Result{}, nil
 	}
 
-	var servicesStatus []kcm.ServiceStatus
-	servicesStatus, servicesErr = updateServicesStatus(ctx, r.Client, profileRef, profile.Status.MatchingClusterRefs, mcs.Status.Services)
-	if servicesErr != nil {
-		return ctrl.Result{}, nil
-	}
-	mcs.Status.Services = servicesStatus
+	if len(mcs.Spec.ServiceSpec.Services) == 0 {
+		if err = r.Client.Delete(ctx, &profile); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete Profile %s: %w", profileRef.String(), err)
+		}
+		mcs.Status.Services = nil
+	} else {
 
+		var servicesStatus []kcm.ServiceStatus
+		servicesStatus, servicesErr = updateServicesStatus(ctx, r.Client, profileRef, profile.Status.MatchingClusterRefs, mcs.Status.Services)
+		if servicesErr != nil {
+			return ctrl.Result{}, nil
+		}
+		mcs.Status.Services = servicesStatus
+	}
 	return ctrl.Result{}, nil
 }
 
