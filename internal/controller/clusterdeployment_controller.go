@@ -560,37 +560,36 @@ func (r *ClusterDeploymentReconciler) updateServices(ctx context.Context, mc *kc
 		return ctrl.Result{}, err
 	}
 
-	if len(mc.Spec.ServiceSpec.Services) > 0 {
-		if _, err = sveltos.ReconcileProfile(ctx, r.Client, mc.Namespace, mc.Name,
-			sveltos.ReconcileProfileOpts{
-				OwnerReference: &metav1.OwnerReference{
-					APIVersion: kcm.GroupVersion.String(),
-					Kind:       kcm.ClusterDeploymentKind,
-					Name:       mc.Name,
-					UID:        mc.UID,
+	if _, err = sveltos.ReconcileProfile(ctx, r.Client, mc.Namespace, mc.Name,
+		sveltos.ReconcileProfileOpts{
+			OwnerReference: &metav1.OwnerReference{
+				APIVersion: kcm.GroupVersion.String(),
+				Kind:       kcm.ClusterDeploymentKind,
+				Name:       mc.Name,
+				UID:        mc.UID,
+			},
+			LabelSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					kcm.FluxHelmChartNamespaceKey: mc.Namespace,
+					kcm.FluxHelmChartNameKey:      mc.Name,
 				},
-				LabelSelector: metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						kcm.FluxHelmChartNamespaceKey: mc.Namespace,
-						kcm.FluxHelmChartNameKey:      mc.Name,
-					},
-				},
-				HelmChartOpts:  opts,
-				Priority:       mc.Spec.ServiceSpec.Priority,
-				StopOnConflict: mc.Spec.ServiceSpec.StopOnConflict,
-				Reload:         mc.Spec.ServiceSpec.Reload,
-				TemplateResourceRefs: append(
-					getProjectTemplateResourceRefs(mc, cred), mc.Spec.ServiceSpec.TemplateResourceRefs...,
-				),
-				PolicyRefs:      getProjectPolicyRefs(mc, cred),
-				SyncMode:        mc.Spec.ServiceSpec.SyncMode,
-				DriftIgnore:     mc.Spec.ServiceSpec.DriftIgnore,
-				DriftExclusions: mc.Spec.ServiceSpec.DriftExclusions,
-				ContinueOnError: mc.Spec.ServiceSpec.ContinueOnError,
-			}); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to reconcile Profile: %w", err)
-		}
+			},
+			HelmChartOpts:  opts,
+			Priority:       mc.Spec.ServiceSpec.Priority,
+			StopOnConflict: mc.Spec.ServiceSpec.StopOnConflict,
+			Reload:         mc.Spec.ServiceSpec.Reload,
+			TemplateResourceRefs: append(
+				getProjectTemplateResourceRefs(mc, cred), mc.Spec.ServiceSpec.TemplateResourceRefs...,
+			),
+			PolicyRefs:      getProjectPolicyRefs(mc, cred),
+			SyncMode:        mc.Spec.ServiceSpec.SyncMode,
+			DriftIgnore:     mc.Spec.ServiceSpec.DriftIgnore,
+			DriftExclusions: mc.Spec.ServiceSpec.DriftExclusions,
+			ContinueOnError: mc.Spec.ServiceSpec.ContinueOnError,
+		}); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to reconcile Profile: %w", err)
 	}
+
 	// NOTE:
 	// We are returning nil in the return statements whenever servicesErr != nil
 	// because we don't want the error content in servicesErr to be assigned to err.
@@ -604,9 +603,6 @@ func (r *ClusterDeploymentReconciler) updateServices(ctx context.Context, mc *kc
 	}
 
 	if len(mc.Spec.ServiceSpec.Services) == 0 {
-		if err = r.Client.Delete(ctx, &profile); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to delete Profile %s: %w", profileRef.String(), err)
-		}
 		mc.Status.Services = nil
 	} else {
 		var servicesStatus []kcm.ServiceStatus
