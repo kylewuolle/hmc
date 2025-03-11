@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,6 +52,10 @@ const (
 	SveltosClusterReadyCondition = "SveltosClusterReady"
 )
 
+type IpamSpec struct {
+	ClusterIpamRef *corev1.ObjectReference `json:"clusterIpamRef,omitempty"`
+}
+
 // ClusterDeploymentSpec defines the desired state of ClusterDeployment
 type ClusterDeploymentSpec struct {
 	// Config allows to provide parameters for template customization.
@@ -73,6 +79,8 @@ type ClusterDeploymentSpec struct {
 	ServiceSpec ServiceSpec `json:"serviceSpec,omitempty"`
 	// DryRun specifies whether the template should be applied after validation or only validated.
 	DryRun bool `json:"dryRun,omitempty"`
+
+	Ipam IpamSpec `json:"ipam,omitempty"`
 }
 
 // ClusterDeploymentStatus defines the observed state of ClusterDeployment

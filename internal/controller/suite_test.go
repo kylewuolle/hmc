@@ -129,6 +129,9 @@ var _ = BeforeSuite(func() {
 	Expect(clusterapiv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(velerov1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(libsveltosv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	err = k0rdentmirantiscomv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
