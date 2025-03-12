@@ -17,3 +17,8 @@ spec:
   {{- end }}
   {{- end }}
   subscriptionID: {{ .Values.subscriptionID }}
+  networkSpec:
+    vnet:
+      name: my-vnet
+      cidrBlocks:
+        - 10.0.0.0/30

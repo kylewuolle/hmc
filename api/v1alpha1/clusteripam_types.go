@@ -17,6 +17,7 @@ package v1alpha1
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 )
 
 // ClusterIPAMSpec defines the desired state of ClusterIPAM
@@ -44,11 +45,11 @@ type ClusterIPAM struct {
 
 	ClusterIPAMClaimRef v1.ObjectReference `json:"clusterIPAMClaimRef,omitempty"`
 
-	NodeIPClaims []v1.TypedLocalObjectReference `json:"nodeIPClaims,omitempty"`
+	NodeIPClaims []ipamv1.IPAddressClaim `json:"nodeIPClaims,omitempty"`
 
-	ClusterIPClaims []v1.TypedLocalObjectReference `json:"clusterIPClaims,omitempty"`
+	ClusterIPClaims []ipamv1.IPAddressClaim `json:"clusterIPClaims,omitempty"`
 
-	ExternalIPClaims []v1.TypedLocalObjectReference `json:"ExternalIPClaims,omitempty"`
+	ExternalIPClaims []ipamv1.IPAddressClaim `json:"ExternalIPClaims,omitempty"`
 }
 
 // +kubebuilder:object:root=true

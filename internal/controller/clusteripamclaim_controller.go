@@ -72,24 +72,53 @@ func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, nil
 	}
 
+	var claims []ipamv1.IPAddressClaim
 	if ci.Spec.NodeIPPool.Name != "" {
-		return r.CreateNodeIpClaims(ctx, ci)
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *ClusterIPAMClaimReconciler) CreateNodeIpClaims(ctx context.Context, ci *kcm.ClusterIPAMClaim) (ctrl.Result, error) {
-	for i := 0; i < ci.Spec.NodeIPPool.NodeCount; i++ {
-		if err := r.CreateIPAddressClaim(ctx, ci.Namespace, ci.Spec.NodeIPPool.TypedLocalObjectReference, ci); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create node ip address claims for: %s provider : %w", ci.Spec.Provider, err)
+		var err error
+		claims, err = r.CreateNodeIpClaims(ctx, ci)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create node ip claims: %w", err)
 		}
 	}
 
+	if err := r.CreateClusterIPAM(ctx, ci, claims); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ci.Namespace, ci.Name, err)
+	}
+
 	return ctrl.Result{}, nil
 }
 
-func (r *ClusterIPAMClaimReconciler) CreateIPAddressClaim(ctx context.Context, namespace string, pool v1.TypedLocalObjectReference, ci *kcm.ClusterIPAMClaim) error {
+func (r *ClusterIPAMClaimReconciler) CreateClusterIPAM(ctx context.Context, ci *kcm.ClusterIPAMClaim, nodeClaims []ipamv1.IPAddressClaim) error {
+	ipam := kcm.ClusterIPAM{
+		ObjectMeta: metav1.ObjectMeta{Name: ci.Name, Namespace: ci.Namespace},
+		Spec: kcm.ClusterIPAMSpec{
+			Provider: ci.Spec.Provider,
+		},
+		NodeIPClaims: nodeClaims,
+	}
+
+	utils.AddOwnerReference(&ipam, ci)
+	if err := r.Client.Create(ctx, &ipam); err != nil {
+		return fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ipam.Namespace, ipam.Name, err)
+	}
+
+	return nil
+}
+
+func (r *ClusterIPAMClaimReconciler) CreateNodeIpClaims(ctx context.Context, ci *kcm.ClusterIPAMClaim) ([]ipamv1.IPAddressClaim, error) {
+	claims := make([]ipamv1.IPAddressClaim, ci.Spec.NodeIPPool.NodeCount)
+
+	for i := 0; i < ci.Spec.NodeIPPool.NodeCount; i++ {
+		claim, err := r.CreateIPAddressClaim(ctx, ci.Namespace, ci.Spec.NodeIPPool.TypedLocalObjectReference, ci)
+		if err != nil {
+			return claims, fmt.Errorf("failed to create node ip address claims for: %s provider : %w", ci.Spec.Provider, err)
+		}
+		claims[i] = claim
+	}
+	return claims, nil
+}
+
+func (r *ClusterIPAMClaimReconciler) CreateIPAddressClaim(ctx context.Context, namespace string, pool v1.TypedLocalObjectReference, ci *kcm.ClusterIPAMClaim) (ipamv1.IPAddressClaim, error) {
 	claim := ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    namespace,
@@ -102,9 +131,9 @@ func (r *ClusterIPAMClaimReconciler) CreateIPAddressClaim(ctx context.Context, n
 
 	utils.AddOwnerReference(&claim, ci)
 	if err := r.Create(ctx, &claim); err != nil {
-		return fmt.Errorf("failed to create IP address claim: %w", err)
+		return claim, fmt.Errorf("failed to create IP address claim: %w", err)
 	}
-	return nil
+	return claim, nil
 }
 
 func (r *ClusterIPAMClaimReconciler) Delete(ctx context.Context, ci *kcm.ClusterIPAMClaim) (ctrl.Result, error) {
