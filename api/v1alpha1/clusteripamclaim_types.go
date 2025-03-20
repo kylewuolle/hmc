@@ -15,37 +15,44 @@
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const ClusterIPAMClaimFinalizer = "k0rdent.mirantis.com/cluster-ipamclaim"
+const (
+	ClusterIPAMClaimFinalizer = "k0rdent.mirantis.com/cluster-ipamclaim"
 
-type NodeIPPoolSpec struct {
-	v1.TypedLocalObjectReference `json:",inline"`
-	NodeCount                    int `json:"nodeCount"`
-}
+	OwnedByLabel = "k0rdent.mirantis.com/ownedby"
+)
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	NodeIPPool NodeIPPoolSpec `json:"nodeIPPool,omitempty"`
+	NodeIPPool IPPoolSpec `json:"nodeIPPool,omitempty"`
 
-	ClusterIPPool v1.TypedLocalObjectReference `json:"clusterIPPool,omitempty"`
+	ClusterIPPool IPPoolSpec `json:"clusterIPPool,omitempty"`
 
-	ExternalIPPool v1.TypedLocalObjectReference `json:"externalIPPool,omitempty"`
+	ExternalIPPool IPPoolSpec `json:"externalIPPool,omitempty"`
+}
+
+// IPPoolSpec defines the reference to an IP Pool and the number of ips to request
+type IPPoolSpec struct {
+	corev1.TypedLocalObjectReference `json:",inline"`
+	Count                            int `json:"count"`
 }
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
 type ClusterIPAMClaimStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	ClusterIPAMRef corev1.ObjectReference `json:"clusterIPAMRef,omitempty"`
+	// +kubebuilder:default:=false
+	Bound bool `json:"bound"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="bound",type="string",JSONPath=".status.bound",description="Bound",priority=0
 
 // ClusterIPAMClaim is the Schema for the clusteripamclaims API
 type ClusterIPAMClaim struct {

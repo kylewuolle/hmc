@@ -366,6 +366,10 @@ func main() {
 }
 
 func setupWebhooks(mgr ctrl.Manager, currentNamespace string, validateClusterUpgradePath bool) error {
+	if err := (&kcmwebhook.ClusterIPAMClaimValidator{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ClusterIPAMClaim")
+		return err
+	}
 	if err := (&kcmwebhook.ClusterDeploymentValidator{ValidateClusterUpgradePath: validateClusterUpgradePath}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "ClusterDeployment")
 		return err
