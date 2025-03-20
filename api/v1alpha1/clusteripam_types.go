@@ -15,25 +15,40 @@
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 )
 
 // ClusterIPAMSpec defines the desired state of ClusterIPAM
 type ClusterIPAMSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
+
+	NodeIPClaims []corev1.ObjectReference `json:"nodeIPClaims,omitempty"`
+
+	ClusterIPClaims []corev1.ObjectReference `json:"clusterIPClaims,omitempty"`
+
+	ExternalIPClaims []corev1.ObjectReference `json:"ExternalIPClaims,omitempty"`
 }
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
 type ClusterIPAMStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Phase ClusterIPAMPhase `json:"phase,omitempty"`
+	// Conditions contains details for the current state of the ClusterIPAM.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+// +enum
+type ClusterIPAMPhase string
+
+const (
+	IpamPhasePending ClusterIPAMPhase = "Pending"
+	IpamPhaseBound   ClusterIPAMPhase = "Bound"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="Phase",priority=0
 
 // ClusterIPAM is the Schema for the clusteripams API
 type ClusterIPAM struct {
@@ -42,14 +57,6 @@ type ClusterIPAM struct {
 
 	Spec   ClusterIPAMSpec   `json:"spec,omitempty"`
 	Status ClusterIPAMStatus `json:"status,omitempty"`
-
-	ClusterIPAMClaimRef v1.ObjectReference `json:"clusterIPAMClaimRef,omitempty"`
-
-	NodeIPClaims []ipamv1.IPAddressClaim `json:"nodeIPClaims,omitempty"`
-
-	ClusterIPClaims []ipamv1.IPAddressClaim `json:"clusterIPClaims,omitempty"`
-
-	ExternalIPClaims []ipamv1.IPAddressClaim `json:"ExternalIPClaims,omitempty"`
 }
 
 // +kubebuilder:object:root=true

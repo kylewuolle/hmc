@@ -277,7 +277,7 @@ rules:
     - k0rdent.mirantis.com
   resources:
     - clusteripamclaims/status
-    - clusteripam/status
+    - clusteripams/status
   verbs:
     - get
     - patch
