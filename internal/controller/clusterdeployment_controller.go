@@ -67,7 +67,7 @@ var (
 	errClusterTemplateNotFound = errors.New("cluster template is not found")
 )
 
-type helmActor interface {
+type HelmActor interface {
 	DownloadChartFromArtifact(ctx context.Context, artifact *sourcev1.Artifact) (*chart.Chart, error)
 	InitializeConfiguration(clusterDeployment *kcm.ClusterDeployment, log action.DebugLog) (*action.Configuration, error)
 	EnsureReleaseWithValues(ctx context.Context, actionConfig *action.Configuration, hcChart *chart.Chart, clusterDeployment *kcm.ClusterDeployment) error
@@ -76,7 +76,7 @@ type helmActor interface {
 // ClusterDeploymentReconciler reconciles a ClusterDeployment object
 type ClusterDeploymentReconciler struct {
 	Client client.Client
-	helmActor
+	HelmActor
 	Config          *rest.Config
 	DynamicClient   *dynamic.DynamicClient
 	SystemNamespace string
@@ -1086,7 +1086,7 @@ func (r *ClusterDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Client = mgr.GetClient()
 	r.Config = mgr.GetConfig()
 
-	r.helmActor = helm.NewActor(r.Config, r.Client.RESTMapper())
+	r.HelmActor = helm.NewActor(r.Config, r.Client.RESTMapper())
 
 	r.defaultRequeueTime = 10 * time.Second
 
