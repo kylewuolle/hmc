@@ -149,6 +149,10 @@ func main() {
 
 		_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		_, _ = fmt.Fprint(os.Stderr, defaultUsage.String())
+		_, _ = fmt.Fprintf(os.Stderr, "\nSupported providers:\n")
+		for _, el := range providers.List() {
+			_, _ = fmt.Fprintf(os.Stderr, "  - %s\n", el)
+		}
 		_, _ = fmt.Fprintf(os.Stderr, "\nVersion: %s\n", build.Version)
 	}
 	flag.Parse()
@@ -226,8 +230,6 @@ func main() {
 		setupLog.Error(err, "unable to setup indexers")
 		os.Exit(1)
 	}
-
-	record.InitFromRecorder(mgr.GetEventRecorderFor("kcm-controller-manager"))
 
 	currentNamespace := utils.CurrentNamespace()
 
@@ -336,12 +338,6 @@ func main() {
 		SystemNamespace: currentNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagementBackup")
-		os.Exit(1)
-	}
-	if err = (&controller.PluggableProviderReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PluggableProvider")
 		os.Exit(1)
 	}
 	if err = (&controller.ClusterIPAMClaimReconciler{

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -24,12 +24,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller/ipam"
 )
 
 var _ = Describe("ClusterIPAM Controller", func() {
 	var (
 		namespace  corev1.Namespace
-		reconciler *ClusterIPAMReconciler
+		reconciler *ipam.ClusterIPAMReconciler
 	)
 
 	testCreateIPAddressClaims := func(count int, includeIpStatus bool) []corev1.ObjectReference {
@@ -69,7 +70,7 @@ var _ = Describe("ClusterIPAM Controller", func() {
 		Expect(k8sClient.Create(ctx, &namespace)).To(Succeed())
 		DeferCleanup(k8sClient.Delete, &namespace)
 
-		reconciler = &ClusterIPAMReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler = &ipam.ClusterIPAMReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
 	})
 
 	testReconciliation := func(nodeIP, externalIP, clusterIP int, expectedPhase kcm.ClusterIPAMPhase) {

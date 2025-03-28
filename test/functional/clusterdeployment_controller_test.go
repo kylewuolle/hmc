@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	"context"
@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller"
 )
 
 type fakeHelmActor struct{}
@@ -254,9 +255,9 @@ var _ = Describe("ClusterDeployment Controller", func() {
 		})
 
 		It("should reconcile ClusterDeployment in dry-run mode", func() {
-			controllerReconciler := &ClusterDeploymentReconciler{
+			controllerReconciler := &controller.ClusterDeploymentReconciler{
 				Client:    mgrClient,
-				helmActor: &fakeHelmActor{},
+				HelmActor: &fakeHelmActor{},
 				Config:    &rest.Config{},
 			}
 
@@ -354,9 +355,9 @@ var _ = Describe("ClusterDeployment Controller", func() {
 		})
 
 		It("should reconcile ClusterDeployment with AWS credentials", func() {
-			controllerReconciler := &ClusterDeploymentReconciler{
+			controllerReconciler := &controller.ClusterDeploymentReconciler{
 				Client:        mgrClient,
-				helmActor:     &fakeHelmActor{},
+				HelmActor:     &fakeHelmActor{},
 				Config:        &rest.Config{},
 				DynamicClient: dynamicClient,
 			}
