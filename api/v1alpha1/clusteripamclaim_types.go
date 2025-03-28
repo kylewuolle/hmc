@@ -19,40 +19,46 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	ClusterIPAMClaimFinalizer = "k0rdent.mirantis.com/cluster-ipamclaim"
-
-	OwnedByLabel = "k0rdent.mirantis.com/ownedby"
-)
-
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
+	// The IP Pool for requisitioning ip addresses for cluster nodes
 	NodeIPPool IPPoolSpec `json:"nodeIPPool,omitempty"`
 
+	// The IP Pool for requisitioning ip addresses for use by the k8s cluster itself
 	ClusterIPPool IPPoolSpec `json:"clusterIPPool,omitempty"`
 
+	// The IP Pool for requisitioning ip addresses for use by services such as load balancers
 	ExternalIPPool IPPoolSpec `json:"externalIPPool,omitempty"`
 }
 
 // IPPoolSpec defines the reference to an IP Pool and the number of ips to request
 type IPPoolSpec struct {
+	// A reference to the ip address pool
 	corev1.TypedLocalObjectReference `json:",inline"`
-	Count                            int `json:"count"`
+
+	// +kubebuilder:validation:Minimum=0
+
+	// The number of ip addresses to requisition from the ip pool
+	Count int `json:"count"`
 }
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
 type ClusterIPAMClaimStatus struct {
-	ClusterIPAMRef corev1.ObjectReference `json:"clusterIPAMRef,omitempty"`
+	ClusterIPAMRef corev1.TypedLocalObjectReference `json:"clusterIPAMRef,omitempty"`
+
 	// +kubebuilder:default:=false
+
+	// flag to indicate that the claim is bound because all ip addresses are allocated
 	Bound bool `json:"bound"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="bound",type="string",JSONPath=".status.bound",description="Bound",priority=0
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Time elapsed since object creation",priority=0
 
 // ClusterIPAMClaim is the Schema for the clusteripamclaims API
 type ClusterIPAMClaim struct {
