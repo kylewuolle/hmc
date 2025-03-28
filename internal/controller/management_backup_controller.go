@@ -34,7 +34,7 @@ import (
 type ManagementBackupReconciler struct {
 	client.Client
 
-	internal *backup.Reconciler
+	Internal *backup.Reconciler
 
 	SystemNamespace string
 }
@@ -58,7 +58,7 @@ func (r *ManagementBackupReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	res, err := r.internal.ReconcileBackup(ctx, mgmtBackup)
+	res, err := r.Internal.ReconcileBackup(ctx, mgmtBackup)
 	if err != nil {
 		l.Error(err, "failed to reconcile managementbackups")
 	}
@@ -76,7 +76,7 @@ func (r *ManagementBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("unable to add periodic runner: %w", err)
 	}
 
-	r.internal = backup.NewReconciler(r.Client, r.SystemNamespace)
+	r.Internal = backup.NewReconciler(r.Client, r.SystemNamespace)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.TypedOptions[ctrl.Request]{
