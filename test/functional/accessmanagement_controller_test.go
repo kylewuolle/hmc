@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller"
 	am "github.com/K0rdent/kcm/test/objects/accessmanagement"
 	"github.com/K0rdent/kcm/test/objects/credential"
 	tc "github.com/K0rdent/kcm/test/objects/templatechain"
@@ -221,7 +222,7 @@ var _ = Describe("Template Management Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Reconciling the created resource")
-			controllerReconciler := &AccessManagementReconciler{
+			controllerReconciler := &controller.AccessManagementReconciler{
 				Client:          k8sClient,
 				SystemNamespace: systemNamespace.Name,
 			}

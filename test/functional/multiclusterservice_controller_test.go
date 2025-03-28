@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller"
 )
 
 var _ = Describe("MultiClusterService Controller", func() {
@@ -188,11 +189,11 @@ var _ = Describe("MultiClusterService Controller", func() {
 			// NOTE: ServiceTemplate2 doesn't need to be reconciled
 			// because we are setting its status manually.
 			By("reconciling ServiceTemplate1 used by MultiClusterService")
-			templateReconciler := TemplateReconciler{
+			templateReconciler := controller.TemplateReconciler{
 				Client:                k8sClient,
-				downloadHelmChartFunc: fakeDownloadHelmChartFunc,
+				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}
-			serviceTemplateReconciler := &ServiceTemplateReconciler{TemplateReconciler: templateReconciler}
+			serviceTemplateReconciler := &controller.ServiceTemplateReconciler{TemplateReconciler: templateReconciler}
 			_, err = serviceTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: serviceTemplate1Ref})
 			Expect(err).NotTo(HaveOccurred())
 
@@ -239,7 +240,7 @@ var _ = Describe("MultiClusterService Controller", func() {
 			multiClusterServiceResource := &kcm.MultiClusterService{}
 			Expect(k8sClient.Get(ctx, multiClusterServiceRef, multiClusterServiceResource)).NotTo(HaveOccurred())
 
-			reconciler := &MultiClusterServiceReconciler{Client: k8sClient, SystemNamespace: testSystemNamespace}
+			reconciler := &controller.MultiClusterServiceReconciler{Client: k8sClient, SystemNamespace: testSystemNamespace}
 			Expect(k8sClient.Delete(ctx, multiClusterService)).To(Succeed())
 			// Running reconcile to remove the finalizer and delete the MultiClusterService
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: multiClusterServiceRef})
@@ -266,7 +267,7 @@ var _ = Describe("MultiClusterService Controller", func() {
 
 		It("should successfully reconcile the resource", func() {
 			By("reconciling MultiClusterService")
-			multiClusterServiceReconciler := &MultiClusterServiceReconciler{Client: k8sClient, SystemNamespace: testSystemNamespace}
+			multiClusterServiceReconciler := &controller.MultiClusterServiceReconciler{Client: k8sClient, SystemNamespace: testSystemNamespace}
 
 			_, err := multiClusterServiceReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: multiClusterServiceRef})
 			Expect(err).NotTo(HaveOccurred())

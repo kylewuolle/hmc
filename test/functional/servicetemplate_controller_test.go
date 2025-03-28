@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	"time"
@@ -27,12 +27,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller"
 )
 
 //nolint:dupl
 var _ = Describe("ServiceTemplate Controller", func() {
 	var (
-		reconciler      ServiceTemplateReconciler
+		reconciler      controller.ServiceTemplateReconciler
 		namespace       corev1.Namespace
 		secret          corev1.Secret
 		serviceTemplate kcm.ServiceTemplate
@@ -44,8 +45,8 @@ var _ = Describe("ServiceTemplate Controller", func() {
 	Context("When reconciling ServiceTemplate", func() {
 		BeforeEach(func() {
 			By("creating reconciler", func() {
-				reconciler = ServiceTemplateReconciler{
-					TemplateReconciler: TemplateReconciler{
+				reconciler = controller.ServiceTemplateReconciler{
+					TemplateReconciler: controller.TemplateReconciler{
 						Client: k8sClient,
 					},
 				}
