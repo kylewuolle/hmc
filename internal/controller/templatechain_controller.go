@@ -36,7 +36,7 @@ type TemplateChainReconciler struct {
 	client.Client
 	SystemNamespace string
 
-	templateKind string
+	TemplateKind string
 }
 
 type ClusterTemplateChainReconciler struct {
@@ -130,16 +130,16 @@ func (r *TemplateChainReconciler) ReconcileTemplateChain(ctx context.Context, te
 
 		source, found := systemTemplates[supportedTemplate.Name]
 		if !found {
-			errs = errors.Join(errs, fmt.Errorf("source %s %s/%s is not found", r.templateKind, r.SystemNamespace, supportedTemplate.Name))
+			errs = errors.Join(errs, fmt.Errorf("source %s %s/%s is not found", r.TemplateKind, r.SystemNamespace, supportedTemplate.Name))
 			continue
 		}
 		if source.GetCommonStatus().ChartRef == nil {
-			errs = errors.Join(errs, fmt.Errorf("source %s %s/%s does not have chart reference yet", r.templateKind, r.SystemNamespace, supportedTemplate.Name))
+			errs = errors.Join(errs, fmt.Errorf("source %s %s/%s does not have chart reference yet", r.TemplateKind, r.SystemNamespace, supportedTemplate.Name))
 			continue
 		}
 
 		var target client.Object
-		switch r.templateKind {
+		switch r.TemplateKind {
 		case kcm.ClusterTemplateKind:
 			clusterTemplate, ok := source.(*kcm.ClusterTemplate)
 			if !ok {
@@ -170,10 +170,10 @@ func (r *TemplateChainReconciler) ReconcileTemplateChain(ctx context.Context, te
 		}
 
 		if operation == controllerutil.OperationResultCreated {
-			l.Info(r.templateKind+" was successfully created", "template namespace", templateChain.GetNamespace(), "template name", supportedTemplate.Name)
+			l.Info(r.TemplateKind+" was successfully created", "template namespace", templateChain.GetNamespace(), "template name", supportedTemplate.Name)
 		}
 		if operation == controllerutil.OperationResultUpdated {
-			l.Info("Successfully updated OwnerReference on "+r.templateKind, "template namespace", templateChain.GetNamespace(), "template name", supportedTemplate.Name)
+			l.Info("Successfully updated OwnerReference on "+r.TemplateKind, "template namespace", templateChain.GetNamespace(), "template name", supportedTemplate.Name)
 		}
 	}
 
@@ -183,7 +183,7 @@ func (r *TemplateChainReconciler) ReconcileTemplateChain(ctx context.Context, te
 func (r *TemplateChainReconciler) getTemplates(ctx context.Context, opts *client.ListOptions) (map[string]templateCommon, error) {
 	templates := make(map[string]templateCommon)
 
-	switch r.templateKind {
+	switch r.TemplateKind {
 	case kcm.ClusterTemplateKind:
 		ctList := &kcm.ClusterTemplateList{}
 		err := r.List(ctx, ctList, opts)
@@ -218,7 +218,7 @@ func getTemplateNamesManagedByChain(chain templateChain) []string {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterTemplateChainReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.templateKind = kcm.ClusterTemplateKind
+	r.TemplateKind = kcm.ClusterTemplateKind
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.TypedOptions[ctrl.Request]{
@@ -230,7 +230,7 @@ func (r *ClusterTemplateChainReconciler) SetupWithManager(mgr ctrl.Manager) erro
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceTemplateChainReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.templateKind = kcm.ServiceTemplateKind
+	r.TemplateKind = kcm.ServiceTemplateKind
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.TypedOptions[ctrl.Request]{

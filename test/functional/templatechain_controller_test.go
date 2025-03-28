@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package functional
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1alpha1"
+	"github.com/K0rdent/kcm/internal/controller"
 	"github.com/K0rdent/kcm/internal/utils"
 	"github.com/K0rdent/kcm/test/objects/template"
 )
@@ -230,7 +231,7 @@ var _ = Describe("Template Chain Controller", func() {
 		})
 
 		AfterEach(func() {
-			templateChainReconciler := TemplateChainReconciler{
+			templateChainReconciler := controller.TemplateChainReconciler{
 				Client:          mgrClient,
 				SystemNamespace: utils.DefaultSystemNamespace,
 			}
@@ -244,8 +245,8 @@ var _ = Describe("Template Chain Controller", func() {
 				Expect(k8sClient.Delete(ctx, clusterTemplateChainResource)).To(Succeed())
 
 				// Running reconcile to delete the ClusterTemplateChain
-				templateChainReconciler.templateKind = kcmv1.ClusterTemplateKind
-				clusterTemplateChainReconciler := &ClusterTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
+				templateChainReconciler.TemplateKind = kcmv1.ClusterTemplateKind
+				clusterTemplateChainReconciler := &controller.ClusterTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
 				_, err = clusterTemplateChainReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: chain})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -264,8 +265,8 @@ var _ = Describe("Template Chain Controller", func() {
 				Expect(k8sClient.Delete(ctx, serviceTemplateChainResource)).To(Succeed())
 
 				// Running reconcile to delete the ServiceTemplateChain
-				templateChainReconciler.templateKind = kcmv1.ServiceTemplateKind
-				serviceTemplateChainReconciler := &ServiceTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
+				templateChainReconciler.TemplateKind = kcmv1.ServiceTemplateKind
+				serviceTemplateChainReconciler := &controller.ServiceTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
 				_, err = serviceTemplateChainReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: chain})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -289,14 +290,14 @@ var _ = Describe("Template Chain Controller", func() {
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace.Name, Name: "st2"}, stUnmanagedBefore)
 			Expect(err).NotTo(HaveOccurred())
 
-			templateChainReconciler := TemplateChainReconciler{
+			templateChainReconciler := controller.TemplateChainReconciler{
 				Client:          mgrClient,
 				SystemNamespace: utils.DefaultSystemNamespace,
 			}
 			By("Reconciling the ClusterTemplateChain resources")
 			for _, chain := range ctChainNames {
-				templateChainReconciler.templateKind = kcmv1.ClusterTemplateKind
-				clusterTemplateChainReconciler := &ClusterTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
+				templateChainReconciler.TemplateKind = kcmv1.ClusterTemplateKind
+				clusterTemplateChainReconciler := &controller.ClusterTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
 				_, err = clusterTemplateChainReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: chain})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -308,8 +309,8 @@ var _ = Describe("Template Chain Controller", func() {
 
 			By("Reconciling the ServiceTemplateChain resources")
 			for _, chain := range stChainNames {
-				templateChainReconciler.templateKind = kcmv1.ServiceTemplateKind
-				serviceTemplateChainReconciler := &ServiceTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
+				templateChainReconciler.TemplateKind = kcmv1.ServiceTemplateKind
+				serviceTemplateChainReconciler := &controller.ServiceTemplateChainReconciler{TemplateChainReconciler: templateChainReconciler}
 				_, err = serviceTemplateChainReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: chain})
 				Expect(err).NotTo(HaveOccurred())
 
