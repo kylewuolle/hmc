@@ -19,6 +19,10 @@ spec:
       jsonPath: .status.bound
       name: bound
       type: string
+    - description: Time elapsed since object creation
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -45,8 +49,8 @@ spec:
             description: ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
             properties:
               clusterIPPool:
-                description: IPPoolSpec defines the reference to an IP Pool and the
-                  number of ips to request
+                description: The IP Pool for requisitioning ip addresses for use by
+                  the k8s cluster itself
                 properties:
                   apiGroup:
                     description: |-
@@ -55,6 +59,9 @@ spec:
                       For any other third-party types, APIGroup is required.
                     type: string
                   count:
+                    description: The number of ip addresses to requisition from the
+                      ip pool
+                    minimum: 0
                     type: integer
                   kind:
                     description: Kind is the type of resource being referenced
@@ -69,8 +76,8 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               externalIPPool:
-                description: IPPoolSpec defines the reference to an IP Pool and the
-                  number of ips to request
+                description: The IP Pool for requisitioning ip addresses for use by
+                  services such as load balancers
                 properties:
                   apiGroup:
                     description: |-
@@ -79,6 +86,9 @@ spec:
                       For any other third-party types, APIGroup is required.
                     type: string
                   count:
+                    description: The number of ip addresses to requisition from the
+                      ip pool
+                    minimum: 0
                     type: integer
                   kind:
                     description: Kind is the type of resource being referenced
@@ -93,8 +103,8 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               nodeIPPool:
-                description: IPPoolSpec defines the reference to an IP Pool and the
-                  number of ips to request
+                description: The IP Pool for requisitioning ip addresses for cluster
+                  nodes
                 properties:
                   apiGroup:
                     description: |-
@@ -103,6 +113,9 @@ spec:
                       For any other third-party types, APIGroup is required.
                     type: string
                   count:
+                    description: The number of ip addresses to requisition from the
+                      ip pool
+                    minimum: 0
                     type: integer
                   kind:
                     description: Kind is the type of resource being referenced
@@ -125,49 +138,29 @@ spec:
             properties:
               bound:
                 default: false
+                description: flag to indicate that the claim is bound because all
+                  ip addresses are allocated
                 type: boolean
               clusterIPAMRef:
-                description: ObjectReference contains enough information to let you
-                  inspect or modify the referred object.
+                description: |-
+                  TypedLocalObjectReference contains enough information to let you locate the
+                  typed referenced object inside the same namespace.
                 properties:
-                  apiVersion:
-                    description: API version of the referent.
-                    type: string
-                  fieldPath:
+                  apiGroup:
                     description: |-
-                      If referring to a piece of an object instead of an entire object, this string
-                      should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
-                      For example, if the object reference is to a container within a pod, this would take on a value like:
-                      "spec.containers{name}" (where "name" refers to the name of the container that triggered
-                      the event) or if no container name is specified "spec.containers[2]" (container with
-                      index 2 in this pod). This syntax is chosen only to have some well-defined way of
-                      referencing a part of an object.
+                      APIGroup is the group for the resource being referenced.
+                      If APIGroup is not specified, the specified Kind must be in the core API group.
+                      For any other third-party types, APIGroup is required.
                     type: string
                   kind:
-                    description: |-
-                      Kind of the referent.
-                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                    description: Kind is the type of resource being referenced
                     type: string
                   name:
-                    description: |-
-                      Name of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    description: Name is the name of resource being referenced
                     type: string
-                  namespace:
-                    description: |-
-                      Namespace of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
-                    type: string
-                  resourceVersion:
-                    description: |-
-                      Specific resourceVersion to which this reference is made, if any.
-                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
-                    type: string
-                  uid:
-                    description: |-
-                      UID of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
-                    type: string
+                required:
+                - kind
+                - name
                 type: object
                 x-kubernetes-map-type: atomic
             required:

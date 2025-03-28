@@ -195,9 +195,6 @@ var _ = BeforeSuite(func() {
 	err = (&kcmwebhook.ProviderTemplateValidator{TemplateValidator: templateValidator}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&kcmwebhook.ClusterIPAMClaimValidator{}).SetupWebhookWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
