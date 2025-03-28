@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
@@ -108,19 +107,6 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 				resource := createIPAMClaim(resourceName, namespace.Name)
 				Expect(k8sClient.Create(ctx, &resource)).To(Succeed())
 			}
-		})
-
-		AfterEach(func() {
-			By("Cleaning up finalizer", func() {
-				resource := &kcm.ClusterIPAMClaim{}
-				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace.Name}, resource)).To(Succeed())
-
-				By("Removing the finalizer")
-				Expect(controllerutil.RemoveFinalizer(resource, kcm.ClusterIPAMClaimFinalizer)).To(BeTrue())
-
-				By("Updating resource to reflect finalizer removal")
-				Expect(k8sClient.Update(ctx, resource)).To(Succeed())
-			})
 		})
 
 		It("should successfully reconcile the resource", func() {

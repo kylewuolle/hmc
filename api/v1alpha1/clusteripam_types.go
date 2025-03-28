@@ -24,31 +24,32 @@ type ClusterIPAMSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
+	// The IP address claim references for the cluster nodes
 	NodeIPClaims []corev1.ObjectReference `json:"nodeIPClaims,omitempty"`
 
+	// The IP address claim references for use by the k8s cluster itself
 	ClusterIPClaims []corev1.ObjectReference `json:"clusterIPClaims,omitempty"`
 
+	// The IP address claim references for use by services such as load balancers
 	ExternalIPClaims []corev1.ObjectReference `json:"ExternalIPClaims,omitempty"`
 }
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
 type ClusterIPAMStatus struct {
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
-	// Conditions contains details for the current state of the ClusterIPAM.
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-// +enum
 type ClusterIPAMPhase string
 
 const (
-	IpamPhasePending ClusterIPAMPhase = "Pending"
-	IpamPhaseBound   ClusterIPAMPhase = "Bound"
+	ClusterIpamPhasePending ClusterIPAMPhase = "Pending"
+	ClusterIpamPhaseBound   ClusterIPAMPhase = "Bound"
 )
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="Phase",priority=0
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Time elapsed since object creation",priority=0
 
 // ClusterIPAM is the Schema for the clusteripams API
 type ClusterIPAM struct {
