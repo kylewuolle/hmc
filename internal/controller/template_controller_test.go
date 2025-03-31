@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package functional
+package controller
 
 import (
 	"context"
@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1alpha1"
-	"github.com/K0rdent/kcm/internal/controller"
 )
 
 var _ = Describe("Template Controller", func() {
@@ -177,22 +176,22 @@ var _ = Describe("Template Controller", func() {
 		})
 
 		It("should successfully reconcile the resource", func() {
-			templateReconciler := controller.TemplateReconciler{
+			templateReconciler := TemplateReconciler{
 				Client:                mgrClient,
 				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}
 			By("Reconciling the ClusterTemplate resource")
-			clusterTemplateReconciler := &controller.ClusterTemplateReconciler{TemplateReconciler: templateReconciler}
+			clusterTemplateReconciler := &ClusterTemplateReconciler{TemplateReconciler: templateReconciler}
 			_, err := clusterTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Reconciling the ServiceTemplate resource")
-			serviceTemplateReconciler := &controller.ServiceTemplateReconciler{TemplateReconciler: templateReconciler}
+			serviceTemplateReconciler := &ServiceTemplateReconciler{TemplateReconciler: templateReconciler}
 			_, err = serviceTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Reconciling the ProviderTemplate resource")
-			providerTemplateReconciler := &controller.ProviderTemplateReconciler{TemplateReconciler: templateReconciler}
+			providerTemplateReconciler := &ProviderTemplateReconciler{TemplateReconciler: templateReconciler}
 			_, err = providerTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
 			Expect(err).NotTo(HaveOccurred())
 		})
@@ -292,7 +291,7 @@ var _ = Describe("Template Controller", func() {
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
 			By("Reconciling the cluster template")
-			clusterTemplateReconciler := &controller.ClusterTemplateReconciler{TemplateReconciler: controller.TemplateReconciler{
+			clusterTemplateReconciler := &ClusterTemplateReconciler{TemplateReconciler: TemplateReconciler{
 				Client:                k8sClient,
 				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}}

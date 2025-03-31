@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package functional
+package ipam
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
-	"github.com/K0rdent/kcm/internal/controller/ipam"
 )
 
 var _ = Describe("ClusterIPAMClaim Controller", func() {
@@ -40,7 +39,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 		Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 		By("Reconciling the resource after update")
-		reconciler := &ipam.ClusterIPAMClaimReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Name: name, Namespace: namespace}})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -74,7 +73,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 
 	baseReconciliation := func(namespacedName types.NamespacedName) {
 		By("Starting reconciliation process")
-		reconciler := &ipam.ClusterIPAMClaimReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
 		Expect(err).NotTo(HaveOccurred())
 

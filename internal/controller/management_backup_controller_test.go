@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package functional
+package controller
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -23,7 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	kcmv1alpha1 "github.com/K0rdent/kcm/api/v1alpha1"
-	"github.com/K0rdent/kcm/internal/controller"
 	"github.com/K0rdent/kcm/internal/controller/backup"
 )
 
@@ -70,7 +69,7 @@ var _ = Describe("ManagementBackup Controller", func() {
 	})
 
 	It("Should reconcile a ManagementBackup", func() {
-		controllerReconciler := &controller.ManagementBackupReconciler{
+		controllerReconciler := &ManagementBackupReconciler{
 			Client:          mgrClient,
 			SystemNamespace: metav1.NamespaceDefault,
 			Internal:        backup.NewReconciler(mgrClient, metav1.NamespaceDefault),
