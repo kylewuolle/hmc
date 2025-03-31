@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package functional
+package controller
 
 import (
 	"fmt"
@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1alpha1"
-	"github.com/K0rdent/kcm/internal/controller"
 	"github.com/K0rdent/kcm/internal/utils"
 )
 
@@ -78,7 +77,7 @@ var _ = Describe("Management Controller", func() {
 		It("should successfully reconcile the resource", func() {
 			// NOTE: this node just checks that the finalizer has been set
 			By("Reconciling the created resource")
-			controllerReconciler := &controller.ManagementReconciler{
+			controllerReconciler := &ManagementReconciler{
 				Client: k8sClient,
 			}
 
@@ -276,7 +275,7 @@ var _ = Describe("Management Controller", func() {
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
 			By("Reconciling the Management object")
-			controllerReconciler := &controller.ManagementReconciler{
+			controllerReconciler := &ManagementReconciler{
 				Client:          k8sClient,
 				DynamicClient:   dynamicClient,
 				SystemNamespace: utils.DefaultSystemNamespace,

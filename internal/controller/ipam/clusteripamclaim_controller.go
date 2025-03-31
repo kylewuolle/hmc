@@ -74,7 +74,7 @@ func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIP
 		return ctrl.Result{}, fmt.Errorf("failed to get ClusterIPAM %s/%s: %w", clusterIPAMClaim.Namespace, clusterIPAMClaim.Name, err)
 	}
 
-	clusterIPAMClaim.Status.ClusterIPAMRef = corev1.TypedLocalObjectReference{Name: clusterIPAMClaim.Name}
+	clusterIPAMClaim.Status.ClusterIPAMRef = clusterIPAMClaim.Name
 	clusterIPAMClaim.Status.Bound = clusterIPAM.Status.Phase == kcm.ClusterIpamPhaseBound
 
 	if err := r.Status().Update(ctx, clusterIPAMClaim); err != nil {
