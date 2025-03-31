@@ -36,6 +36,7 @@ type ClusterIPAMSpec struct {
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
 type ClusterIPAMStatus struct {
+	// The current phase of the ClusterIPAM, eg Pending
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
 }
 
