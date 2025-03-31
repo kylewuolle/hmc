@@ -47,7 +47,7 @@ type IPPoolSpec struct {
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
 type ClusterIPAMClaimStatus struct {
-	ClusterIPAMRef corev1.TypedLocalObjectReference `json:"clusterIPAMRef,omitempty"`
+	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
 
 	// +kubebuilder:default:=false
 
