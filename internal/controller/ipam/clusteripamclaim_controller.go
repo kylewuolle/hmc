@@ -27,9 +27,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
-	"github.com/K0rdent/kcm/internal/utils"
 	"github.com/K0rdent/kcm/internal/utils/ratelimit"
 )
 
@@ -53,39 +53,11 @@ func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	ci.TypeMeta = metav1.TypeMeta{
-		APIVersion: kcm.GroupVersion.String(),
-		Kind:       "ClusterIPAMClaim",
-	}
-
 	if err := r.createOrUpdateClusterIPAM(ctx, ci); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ci.Namespace, ci.Name, err)
 	}
-	return r.updateStatus(ctx, ci)
-}
 
-func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) (ctrl.Result, error) {
-	clusterIPAM := kcm.ClusterIPAM{}
-	err := r.Client.Get(ctx, client.ObjectKey{
-		Namespace: clusterIPAMClaim.Namespace,
-		Name:      clusterIPAMClaim.Name,
-	}, &clusterIPAM)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get ClusterIPAM %s/%s: %w", clusterIPAMClaim.Namespace, clusterIPAMClaim.Name, err)
-	}
-
-	clusterIPAMClaim.Status.ClusterIPAMRef = clusterIPAMClaim.Name
-	clusterIPAMClaim.Status.Bound = clusterIPAM.Status.Phase == kcm.ClusterIpamPhaseBound
-
-	if err := r.Status().Update(ctx, clusterIPAMClaim); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update ClusterIPAMClaim status: %w", err)
-	}
-
-	if !clusterIPAMClaim.Status.Bound {
-		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, r.updateStatus(ctx, ci)
 }
 
 func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) (returnErr error) {
@@ -102,7 +74,10 @@ func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Conte
 
 	clusterIPAMSpec := clusterIPAM.Spec
 	defer func() {
-		utils.AddOwnerReference(&clusterIPAM, clusterIPAMClaim)
+		if err := controllerutil.SetControllerReference(clusterIPAMClaim, &clusterIPAM, r.Client.Scheme()); err != nil {
+			returnErr = fmt.Errorf("failed to set controller reference: %w", err)
+		}
+
 		_, err := ctrl.CreateOrUpdate(ctx, r.Client, &clusterIPAM, func() error {
 			clusterIPAM.Spec = clusterIPAMSpec
 			return nil
@@ -129,6 +104,50 @@ func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Conte
 		return fmt.Errorf("failed to create or update cluster ip claims for pool %s: %w", clusterIPAMClaim.Spec.ExternalIPPool.Name, err)
 	}
 	clusterIPAMSpec.ExternalIPClaims = claims
+
+	return nil
+}
+
+func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) error {
+	clusterIPAM := kcm.ClusterIPAM{}
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(clusterIPAMClaim), &clusterIPAM); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed to get ClusterIPAM %s: %w", client.ObjectKeyFromObject(clusterIPAMClaim), err)
+	}
+	clusterIPAM.Status.Phase = kcm.ClusterIPAMPhasePending
+
+	claims := clusterIPAM.Spec.NodeIPClaims
+	claims = append(claims, clusterIPAM.Spec.ClusterIPClaims...)
+	claims = append(claims, clusterIPAM.Spec.ExternalIPClaims...)
+
+	allBound := true
+	for _, claimRef := range claims {
+		ipClaim := ipamv1.IPAddressClaim{}
+
+		err := r.Client.Get(ctx, client.ObjectKey{Name: claimRef.Name, Namespace: claimRef.Namespace}, &ipClaim)
+		if err != nil {
+			return fmt.Errorf("failed to get ip claim: %s : %w", claimRef.Name, err)
+		}
+
+		if ipClaim.Status.AddressRef.Name == "" {
+			allBound = false
+			break
+		}
+	}
+
+	if allBound {
+		clusterIPAM.Status.Phase = kcm.ClusterIPAMPhaseBound
+	}
+
+	if err := r.Status().Update(ctx, &clusterIPAM); err != nil {
+		return fmt.Errorf("failed to update ClusterIPAM status: %w", err)
+	}
+
+	clusterIPAMClaim.Status.ClusterIPAMRef = clusterIPAMClaim.Name
+	clusterIPAMClaim.Status.Bound = clusterIPAM.Status.Phase == kcm.ClusterIPAMPhaseBound
+
+	if err := r.Status().Update(ctx, clusterIPAMClaim); err != nil {
+		return fmt.Errorf("failed to update ClusterIPAMClaim status: %w", err)
+	}
 	return nil
 }
 
@@ -179,7 +198,10 @@ func (r *ClusterIPAMClaimReconciler) createIPAddressClaim(ctx context.Context, n
 		},
 	}
 
-	utils.AddOwnerReference(&claim, ci)
+	if err := controllerutil.SetControllerReference(ci, &claim, r.Client.Scheme()); err != nil {
+		return corev1.ObjectReference{}, fmt.Errorf("failed to set controller reference: %w", err)
+	}
+
 	if err := r.Create(ctx, &claim); err != nil {
 		return corev1.ObjectReference{}, fmt.Errorf("failed to create IP address claim: %w", err)
 	}
@@ -194,5 +216,7 @@ func (r *ClusterIPAMClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			RateLimiter: ratelimit.DefaultFastSlow(),
 		}).
 		For(&kcm.ClusterIPAMClaim{}).
+		Owns(&kcm.ClusterIPAM{}).
+		Owns(&ipamv1.IPAddressClaim{}).
 		Complete(r)
 }
