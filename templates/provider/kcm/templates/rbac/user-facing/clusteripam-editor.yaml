@@ -2,8 +2,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    k0rdent.mirantis.com/aggregate-to-global-admin: "true"
   name: {{ include "kcm.fullname" . }}-ipam-editor-role
 rules:
 - apiGroups:
@@ -12,4 +10,3 @@ rules:
   - clusteripamclaims
   - clusteripamclaims/status
   verbs: {{ include "rbac.editorVerbs" . | nindent 6 }}
-

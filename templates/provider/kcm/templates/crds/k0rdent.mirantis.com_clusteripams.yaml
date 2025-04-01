@@ -199,7 +199,11 @@ spec:
             description: ClusterIPAMStatus defines the observed state of ClusterIPAM
             properties:
               phase:
-                description: The current phase of the ClusterIPAM, eg Pending
+                description: The current phase of the ClusterIPAM.
+                enum:
+                - Pending
+                - Bound
+                example: Pending
                 type: string
             type: object
         type: object

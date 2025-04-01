@@ -36,15 +36,18 @@ type ClusterIPAMSpec struct {
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
 type ClusterIPAMStatus struct {
-	// The current phase of the ClusterIPAM, eg Pending
+	// +kubebuilder:validation:Enum=Pending;Bound
+	// +kubebuilder:example=`Pending`
+
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
 }
 
+// The current phase of the ClusterIPAM.
 type ClusterIPAMPhase string
 
 const (
-	ClusterIpamPhasePending ClusterIPAMPhase = "Pending"
-	ClusterIpamPhaseBound   ClusterIPAMPhase = "Bound"
+	ClusterIPAMPhasePending ClusterIPAMPhase = "Pending"
+	ClusterIPAMPhaseBound   ClusterIPAMPhase = "Bound"
 )
 
 // +kubebuilder:object:root=true
