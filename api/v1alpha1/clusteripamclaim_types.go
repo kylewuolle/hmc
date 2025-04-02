@@ -19,6 +19,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ClusterIPAMClaimKind Denotes the clusteripamclaim resource Kind.
+const ClusterIPAMClaimKind = "ClusterIPAMClaim"
+
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
 	// The provider that this claim will be consumed by
