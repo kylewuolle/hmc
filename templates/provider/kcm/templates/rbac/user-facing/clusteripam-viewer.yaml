@@ -3,6 +3,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "kcm.fullname" . }}-ipam-viewer-role
+  labels:
+    k0rdent.mirantis.com/aggregate-to-namespace-viewer: "true"
 rules:
 - apiGroups:
   - k0rdent.mirantis.com
