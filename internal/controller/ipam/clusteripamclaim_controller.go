@@ -17,6 +17,7 @@ package ipam
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,8 +27,11 @@ import (
 	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	kcm "github.com/K0rdent/kcm/api/v1alpha1"
 	"github.com/K0rdent/kcm/internal/utils/ratelimit"
@@ -211,6 +215,16 @@ func (r *ClusterIPAMClaimReconciler) createIPAddressClaim(ctx context.Context, n
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterIPAMClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.defaultRequeueTime = 10 * time.Second
+
+	filterByKind := func(object client.Object, kinds ...string) bool {
+		gvk, err := apiutil.GVKForObject(object, r.Scheme)
+		if err != nil {
+			mgr.GetLogger().Error(err, "Failed to get group version kind", "ObjectNew", object)
+			return false
+		}
+		return slices.Contains(kinds, gvk.Kind)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.TypedOptions[ctrl.Request]{
 			RateLimiter: ratelimit.DefaultFastSlow(),
@@ -218,5 +232,16 @@ func (r *ClusterIPAMClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&kcm.ClusterIPAMClaim{}).
 		Owns(&kcm.ClusterIPAM{}).
 		Owns(&ipamv1.IPAddressClaim{}).
+		WithEventFilter(predicate.Funcs{
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return filterByKind(e.Object, kcm.ClusterIPAMClaimKind)
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return filterByKind(e.ObjectNew, kcm.ClusterIPAMClaimKind, "IPAddressClaim")
+			},
+			CreateFunc: func(e event.CreateEvent) bool {
+				return filterByKind(e.Object, kcm.ClusterIPAMClaimKind)
+			},
+		}).
 		Complete(r)
 }
