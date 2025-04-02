@@ -167,7 +167,7 @@ func (r *ClusterIPAMClaimReconciler) createOrDeleteIPClaims(ctx context.Context,
 			}})
 
 			if client.IgnoreNotFound(err) != nil {
-				return nil, fmt.Errorf("failed to delete IPAddressClaim: %s/%s", toRemove.Name, toRemove.Namespace)
+				return nil, fmt.Errorf("failed to delete IPAddressClaim %s/%s: %w", toRemove.Name, toRemove.Namespace, err)
 			}
 		}
 		// we've reached the desired count
