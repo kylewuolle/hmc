@@ -38,7 +38,7 @@ import (
 )
 
 type ClusterIPAMClaimReconciler struct {
-	client.Client
+	Client             client.Client
 	Scheme             *runtime.Scheme
 	defaultRequeueTime time.Duration
 }
@@ -142,14 +142,14 @@ func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIP
 		clusterIPAM.Status.Phase = kcm.ClusterIPAMPhaseBound
 	}
 
-	if err := r.Status().Update(ctx, &clusterIPAM); err != nil {
+	if err := r.Client.Status().Update(ctx, &clusterIPAM); err != nil {
 		return fmt.Errorf("failed to update ClusterIPAM status: %w", err)
 	}
 
 	clusterIPAMClaim.Status.ClusterIPAMRef = clusterIPAMClaim.Name
 	clusterIPAMClaim.Status.Bound = clusterIPAM.Status.Phase == kcm.ClusterIPAMPhaseBound
 
-	if err := r.Status().Update(ctx, clusterIPAMClaim); err != nil {
+	if err := r.Client.Status().Update(ctx, clusterIPAMClaim); err != nil {
 		return fmt.Errorf("failed to update ClusterIPAMClaim status: %w", err)
 	}
 	return nil
@@ -206,7 +206,7 @@ func (r *ClusterIPAMClaimReconciler) createIPAddressClaim(ctx context.Context, n
 		return corev1.ObjectReference{}, fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
-	if err := r.Create(ctx, &claim); err != nil {
+	if err := r.Client.Create(ctx, &claim); err != nil {
 		return corev1.ObjectReference{}, fmt.Errorf("failed to create IP address claim: %w", err)
 	}
 	return corev1.ObjectReference{Name: claim.Name, Namespace: namespace}, nil
