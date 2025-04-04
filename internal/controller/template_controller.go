@@ -49,7 +49,7 @@ import (
 type TemplateReconciler struct {
 	client.Client
 
-	DownloadHelmChartFunc func(context.Context, *sourcev1.Artifact) (*chart.Chart, error)
+	downloadHelmChartFunc func(context.Context, *sourcev1.Artifact) (*chart.Chart, error)
 
 	SystemNamespace       string
 	DefaultRegistryConfig helm.DefaultRegistryConfig
@@ -251,12 +251,12 @@ func (r *TemplateReconciler) ReconcileTemplate(ctx context.Context, template tem
 
 	artifact := hcChart.Status.Artifact
 
-	if r.DownloadHelmChartFunc == nil {
-		r.DownloadHelmChartFunc = helm.DownloadChartFromArtifact
+	if r.downloadHelmChartFunc == nil {
+		r.downloadHelmChartFunc = helm.DownloadChartFromArtifact
 	}
 
 	l.Info("Downloading Helm chart")
-	helmChart, err := r.DownloadHelmChartFunc(ctx, artifact)
+	helmChart, err := r.downloadHelmChartFunc(ctx, artifact)
 	if err != nil {
 		l.Error(err, "Failed to download Helm chart")
 		err = fmt.Errorf("failed to download chart: %w", err)

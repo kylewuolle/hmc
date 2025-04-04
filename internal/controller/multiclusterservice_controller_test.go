@@ -190,7 +190,7 @@ var _ = Describe("MultiClusterService Controller", func() {
 			By("reconciling ServiceTemplate1 used by MultiClusterService")
 			templateReconciler := TemplateReconciler{
 				Client:                k8sClient,
-				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
+				downloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}
 			serviceTemplateReconciler := &ServiceTemplateReconciler{TemplateReconciler: templateReconciler}
 			_, err = serviceTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: serviceTemplate1Ref})

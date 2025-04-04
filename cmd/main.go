@@ -103,6 +103,7 @@ func main() {
 		webhookCertDir             string
 		pprofBindAddress           string
 		leaderElectionNamespace    string
+		enableIPAM                 bool
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -131,6 +132,7 @@ func main() {
 	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
 		"Webhook cert dir, only used when webhook-port is specified.")
 	flag.StringVar(&pprofBindAddress, "pprof-bind-address", "", "The TCP address that the controller should bind to for serving pprof, \"0\" or empty value disables pprof")
+	flag.BoolVar(&enableIPAM, "enable-ipam", true, "Enable cluster IPAM feature")
 
 	opts := zap.Options{
 		Development: true,
@@ -339,12 +341,15 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagementBackup")
 		os.Exit(1)
 	}
-	if err = (&ipam.ClusterIPAMClaimReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
-		os.Exit(1)
+
+	if enableIPAM {
+		if err = (&ipam.ClusterIPAMClaimReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
+			os.Exit(1)
+		}
 	}
 
 	// +kubebuilder:scaffold:builder
