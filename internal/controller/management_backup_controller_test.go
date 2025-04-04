@@ -72,7 +72,7 @@ var _ = Describe("ManagementBackup Controller", func() {
 		controllerReconciler := &ManagementBackupReconciler{
 			Client:          mgrClient,
 			SystemNamespace: metav1.NamespaceDefault,
-			Internal:        backup.NewReconciler(mgrClient, metav1.NamespaceDefault),
+			internal:        backup.NewReconciler(mgrClient, metav1.NamespaceDefault),
 		}
 
 		_, err := controllerReconciler.Reconcile(ctx, reconcileRequest)

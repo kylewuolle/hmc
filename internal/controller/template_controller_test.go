@@ -178,7 +178,7 @@ var _ = Describe("Template Controller", func() {
 		It("should successfully reconcile the resource", func() {
 			templateReconciler := TemplateReconciler{
 				Client:                mgrClient,
-				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
+				downloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}
 			By("Reconciling the ClusterTemplate resource")
 			clusterTemplateReconciler := &ClusterTemplateReconciler{TemplateReconciler: templateReconciler}
@@ -293,7 +293,7 @@ var _ = Describe("Template Controller", func() {
 			By("Reconciling the cluster template")
 			clusterTemplateReconciler := &ClusterTemplateReconciler{TemplateReconciler: TemplateReconciler{
 				Client:                k8sClient,
-				DownloadHelmChartFunc: fakeDownloadHelmChartFunc,
+				downloadHelmChartFunc: fakeDownloadHelmChartFunc,
 			}}
 			_, err := clusterTemplateReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{
 				Name:      clusterTemplateName,
