@@ -34,9 +34,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	inclusteripam "sigs.k8s.io/cluster-api-ipam-provider-in-cluster/api/v1alpha2"
 	capioperatorv1 "sigs.k8s.io/cluster-api-operator/api/v1alpha2"
-	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	clusterapiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -49,7 +50,6 @@ import (
 	"github.com/K0rdent/kcm/internal/controller"
 	"github.com/K0rdent/kcm/internal/controller/ipam"
 	"github.com/K0rdent/kcm/internal/helm"
-	"github.com/K0rdent/kcm/internal/record"
 	"github.com/K0rdent/kcm/internal/telemetry"
 	"github.com/K0rdent/kcm/internal/utils"
 	kcmwebhook "github.com/K0rdent/kcm/internal/webhook"
@@ -81,6 +81,7 @@ func init() {
 	utilruntime.Must(ipamv1.AddToScheme(scheme))
 	utilruntime.Must(capioperatorv1.AddToScheme(scheme)) // required only for the mgmt status updates
 	utilruntime.Must(clusterapiv1.AddToScheme(scheme))
+	utilruntime.Must(inclusteripam.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -150,10 +151,6 @@ func main() {
 
 		_, _ = fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		_, _ = fmt.Fprint(os.Stderr, defaultUsage.String())
-		_, _ = fmt.Fprintf(os.Stderr, "\nSupported providers:\n")
-		for _, el := range providers.List() {
-			_, _ = fmt.Fprintf(os.Stderr, "  - %s\n", el)
-		}
 		_, _ = fmt.Fprintf(os.Stderr, "\nVersion: %s\n", build.Version)
 	}
 	flag.Parse()
@@ -341,6 +338,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagementBackup")
 		os.Exit(1)
 	}
+
 	if err = (&ipam.ClusterIPAMClaimReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),

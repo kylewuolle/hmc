@@ -310,6 +310,11 @@ rules:
   resources:
     - ipaddressclaims
   verbs: {{ include "rbac.editorVerbs" . | nindent 4 }}
+- apiGroups:
+    - ipam.cluster.x-k8s.io
+  resources:
+    - inclusterippools
+  verbs: {{ include "rbac.editorVerbs" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

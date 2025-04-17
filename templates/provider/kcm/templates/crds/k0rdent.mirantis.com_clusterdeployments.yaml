@@ -68,6 +68,10 @@ spec:
           spec:
             description: ClusterDeploymentSpec defines the desired state of ClusterDeployment
             properties:
+              clusterIPAMClaimRef:
+                description: ClusterIPAMClaimRef is a reference to a ClusterIPAMClaim
+                  which this cluster deployment will use
+                type: string
               config:
                 description: |-
                   Config allows to provide parameters for template customization.

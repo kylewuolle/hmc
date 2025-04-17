@@ -169,9 +169,10 @@ func (r *ClusterDeploymentReconciler) reconcileUpdate(ctx context.Context, cd *k
 	}
 
 	clusterRes, clusterErr := r.updateCluster(ctx, cd, clusterTpl)
+	ipamErr := r.processsClusterIPAM(ctx, cd)
 	servicesRes, servicesErr := r.updateServices(ctx, cd)
 
-	if err = errors.Join(clusterErr, servicesErr); err != nil {
+	if err = errors.Join(clusterErr, servicesErr, ipamErr); err != nil {
 		return ctrl.Result{}, err
 	}
 	if !clusterRes.IsZero() {
@@ -1051,6 +1052,36 @@ func (*ClusterDeploymentReconciler) templatesValidUpdateSource(cl client.Client,
 			}
 			return ctn.Status.Valid && !cto.Status.Valid
 		},
+	})
+}
+
+func (r *ClusterDeploymentReconciler) processsClusterIPAM(ctx context.Context, cd *kcm.ClusterDeployment) error {
+	if cd.Spec.ClusterIPAMClaimRef == "" {
+		return nil
+	}
+
+	clusterIpamClaimRef := client.ObjectKey{Name: cd.Spec.ClusterIPAMClaimRef, Namespace: cd.Namespace}
+
+	clusterIpamClaim := kcm.ClusterIPAMClaim{}
+	err := r.Client.Get(ctx, clusterIpamClaimRef, &clusterIpamClaim)
+	if err != nil {
+		return fmt.Errorf("failed to fetch ClusterIPAMClaim: %w", err)
+	}
+
+	clusterIpamRef := client.ObjectKey{Name: clusterIpamClaim.Status.ClusterIPAMRef, Namespace: cd.Namespace}
+	clusterIpam := kcm.ClusterIPAM{}
+	err = r.Client.Get(ctx, clusterIpamRef, &clusterIpam)
+	if err != nil {
+		return fmt.Errorf("failed to fetch ClusterIPAM: %w", err)
+	}
+
+	return cd.AddHelmValues(func(values map[string]any) error {
+		values["ipamEnabled"] = true
+		for _, v := range clusterIpam.Status.ProviderData {
+			values[v.Name] = v
+		}
+
+		return nil
 	})
 }
 

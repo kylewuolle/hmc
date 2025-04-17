@@ -15,7 +15,6 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,25 +26,25 @@ type ClusterIPAMClaimSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for cluster nodes
-	NodeIPPool IPPoolSpec `json:"nodeIPPool,omitempty"`
+	// The allocation requisitioning ip addresses for cluster nodes
+	NodeNetwork AddressSpaceSpec `json:"nodeNetwork,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for use by the k8s cluster itself
-	ClusterIPPool IPPoolSpec `json:"clusterIPPool,omitempty"`
+	// The allocation for requisitioning ip addresses for use by the k8s cluster itself
+	ClusterNetwork AddressSpaceSpec `json:"clusterNetwork,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for use by services such as load balancers
-	ExternalIPPool IPPoolSpec `json:"externalIPPool,omitempty"`
+	// The allocation for requisitioning ip addresses for use by services such as load balancers
+	ExternalNetwork AddressSpaceSpec `json:"externalNetwork,omitempty"`
+
+	ClusterDeploymentRef string `json:"clusterDeploymentRef"`
 }
 
-// IPPoolSpec defines the reference to an IP Pool and the number of ips to request
-type IPPoolSpec struct {
-	// A reference to the ip address pool
-	corev1.TypedLocalObjectReference `json:",inline"`
+// AddressSpaceSpec defines the ip address space that will be allocated
+type AddressSpaceSpec struct {
+	// Cidr notation of the allocated address space
+	Cidr string `json:"cidr,omitempty"`
 
-	// +kubebuilder:validation:Minimum=0
-
-	// The number of ip addresses to requisition from the ip pool
-	Count int `json:"count"`
+	// IPAddresses to be allocated
+	IPAddresses []string `json:"ipAddresses,omitempty"`
 }
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim

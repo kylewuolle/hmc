@@ -15,7 +15,7 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,14 +24,7 @@ type ClusterIPAMSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	// The IP address claim references for the cluster nodes
-	NodeIPClaims []corev1.ObjectReference `json:"nodeIPClaims,omitempty"`
-
-	// The IP address claim references for use by the k8s cluster itself
-	ClusterIPClaims []corev1.ObjectReference `json:"clusterIPClaims,omitempty"`
-
-	// The IP address claim references for use by services such as load balancers
-	ExternalIPClaims []corev1.ObjectReference `json:"ExternalIPClaims,omitempty"`
+	ClusterIPAMClaimRef string `json:"ClusterIPAMClaimRefs,omitempty"`
 }
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
@@ -40,6 +33,13 @@ type ClusterIPAMStatus struct {
 	// +kubebuilder:example=`Pending`
 
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
+
+	ProviderData []ClusterIPAMProviderData `json:"providerData,omitempty"`
+}
+
+type ClusterIPAMProviderData struct {
+	Name string                `json:"name,omitempty"`
+	Data *apiextensionsv1.JSON `json:"config,omitempty"`
 }
 
 // The current phase of the ClusterIPAM.

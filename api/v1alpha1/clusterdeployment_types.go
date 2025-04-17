@@ -72,6 +72,9 @@ type ClusterDeploymentSpec struct {
 	// PropagateCredentials indicates whether credentials should be propagated
 	// for use by CCM (Cloud Controller Manager).
 	PropagateCredentials bool `json:"propagateCredentials,omitempty"`
+
+	// ClusterIPAMClaimRef is a reference to a ClusterIPAMClaim which this cluster deployment will use
+	ClusterIPAMClaimRef string `json:"clusterIPAMClaimRef,omitempty"`
 }
 
 // ClusterDeploymentStatus defines the observed state of ClusterDeployment

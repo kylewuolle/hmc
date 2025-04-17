@@ -48,90 +48,52 @@ spec:
           spec:
             description: ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
             properties:
-              clusterIPPool:
-                description: The IP Pool for requisitioning ip addresses for use by
-                  the k8s cluster itself
+              clusterDeploymentRef:
+                type: string
+              clusterNetwork:
+                description: The allocation for requisitioning ip addresses for use
+                  by the k8s cluster itself
                 properties:
-                  apiGroup:
-                    description: |-
-                      APIGroup is the group for the resource being referenced.
-                      If APIGroup is not specified, the specified Kind must be in the core API group.
-                      For any other third-party types, APIGroup is required.
+                  cidr:
+                    description: Cidr notation of the allocated address space
                     type: string
-                  count:
-                    description: The number of ip addresses to requisition from the
-                      ip pool
-                    minimum: 0
-                    type: integer
-                  kind:
-                    description: Kind is the type of resource being referenced
-                    type: string
-                  name:
-                    description: Name is the name of resource being referenced
-                    type: string
-                required:
-                - count
-                - kind
-                - name
+                  ipAddresses:
+                    description: IPAddresses to be allocated
+                    items:
+                      type: string
+                    type: array
                 type: object
-                x-kubernetes-map-type: atomic
-              externalIPPool:
-                description: The IP Pool for requisitioning ip addresses for use by
-                  services such as load balancers
+              externalNetwork:
+                description: The allocation for requisitioning ip addresses for use
+                  by services such as load balancers
                 properties:
-                  apiGroup:
-                    description: |-
-                      APIGroup is the group for the resource being referenced.
-                      If APIGroup is not specified, the specified Kind must be in the core API group.
-                      For any other third-party types, APIGroup is required.
+                  cidr:
+                    description: Cidr notation of the allocated address space
                     type: string
-                  count:
-                    description: The number of ip addresses to requisition from the
-                      ip pool
-                    minimum: 0
-                    type: integer
-                  kind:
-                    description: Kind is the type of resource being referenced
-                    type: string
-                  name:
-                    description: Name is the name of resource being referenced
-                    type: string
-                required:
-                - count
-                - kind
-                - name
+                  ipAddresses:
+                    description: IPAddresses to be allocated
+                    items:
+                      type: string
+                    type: array
                 type: object
-                x-kubernetes-map-type: atomic
-              nodeIPPool:
-                description: The IP Pool for requisitioning ip addresses for cluster
+              nodeNetwork:
+                description: The allocation requisitioning ip addresses for cluster
                   nodes
                 properties:
-                  apiGroup:
-                    description: |-
-                      APIGroup is the group for the resource being referenced.
-                      If APIGroup is not specified, the specified Kind must be in the core API group.
-                      For any other third-party types, APIGroup is required.
+                  cidr:
+                    description: Cidr notation of the allocated address space
                     type: string
-                  count:
-                    description: The number of ip addresses to requisition from the
-                      ip pool
-                    minimum: 0
-                    type: integer
-                  kind:
-                    description: Kind is the type of resource being referenced
-                    type: string
-                  name:
-                    description: Name is the name of resource being referenced
-                    type: string
-                required:
-                - count
-                - kind
-                - name
+                  ipAddresses:
+                    description: IPAddresses to be allocated
+                    items:
+                      type: string
+                    type: array
                 type: object
-                x-kubernetes-map-type: atomic
               provider:
                 description: The provider that this claim will be consumed by
                 type: string
+            required:
+            - clusterDeploymentRef
             type: object
           status:
             description: ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
