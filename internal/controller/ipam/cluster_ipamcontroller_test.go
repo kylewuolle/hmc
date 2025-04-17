@@ -33,11 +33,42 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 		ipPoolSpec := kcm.AddressSpaceSpec{}
 		return kcm.ClusterIPAMClaim{
 			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: namespace},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterIPAMClaim",
+				APIVersion: kcm.GroupVersion.String(),
+			},
 			Spec: kcm.ClusterIPAMClaimSpec{
-				Provider:        adapter.IPAMInclusterAdapterName,
-				ClusterNetwork:  ipPoolSpec,
-				NodeNetwork:     ipPoolSpec,
-				ExternalNetwork: ipPoolSpec,
+				Provider:             adapter.IPAMInclusterAdapterName,
+				ClusterNetwork:       ipPoolSpec,
+				NodeNetwork:          ipPoolSpec,
+				ExternalNetwork:      ipPoolSpec,
+				ClusterDeploymentRef: resourceName,
+			},
+		}
+	}
+
+	createIPAM := func(resourceName, namespace string) kcm.ClusterIPAM {
+		By("Creating a new ClusterIPAM resource")
+		return kcm.ClusterIPAM{
+			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: namespace},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ClusterIPAM",
+				APIVersion: kcm.GroupVersion.String(),
+			},
+			Spec: kcm.ClusterIPAMSpec{
+				Provider:            adapter.IPAMInclusterAdapterName,
+				ClusterIPAMClaimRef: resourceName,
+			},
+		}
+	}
+
+	createCluterDeployment := func(resourceName, namespace string) kcm.ClusterDeployment {
+		By("Creating a new ClusterDeployment resource")
+
+		return kcm.ClusterDeployment{
+			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: namespace},
+			Spec: kcm.ClusterDeploymentSpec{
+				Template: "test",
 			},
 		}
 	}
@@ -61,12 +92,25 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 				resource := createIPAMClaim(resourceName, namespace.Name)
 				Expect(k8sClient.Create(ctx, &resource)).To(Succeed())
 			}
+
+			clusterIPAM := &kcm.ClusterIPAM{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace.Name}, clusterIPAM); errors.IsNotFound(err) {
+				resource := createIPAM(resourceName, namespace.Name)
+				Expect(k8sClient.Create(ctx, &resource)).To(Succeed())
+			}
+
+			clusterDeployment := &kcm.ClusterDeployment{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: namespace.Name}, clusterDeployment); errors.IsNotFound(err) {
+				resource := createCluterDeployment(resourceName, namespace.Name)
+				Expect(k8sClient.Create(ctx, &resource)).To(Succeed())
+			}
 		})
 
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
+
 			namespacedName := types.NamespacedName{Name: resourceName, Namespace: namespace.Name}
-			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+			reconciler := &ClusterIPAMReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
 			Expect(err).NotTo(HaveOccurred())
 

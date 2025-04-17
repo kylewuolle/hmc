@@ -34,9 +34,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	inclusteripam "sigs.k8s.io/cluster-api-ipam-provider-in-cluster/api/v1alpha2"
 	capioperatorv1 "sigs.k8s.io/cluster-api-operator/api/v1alpha2"
-	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	clusterapiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -81,6 +82,7 @@ func init() {
 	utilruntime.Must(ipamv1.AddToScheme(scheme))
 	utilruntime.Must(capioperatorv1.AddToScheme(scheme)) // required only for the mgmt status updates
 	utilruntime.Must(clusterapiv1.AddToScheme(scheme))
+	utilruntime.Must(inclusteripam.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -358,25 +360,12 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
 			os.Exit(1)
 		}
-		if err = (&ipam.ClusterIPAMReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAM")
-			os.Exit(1)
-		}
 	}
-	if err = (&controller.ProviderInterfaceReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ProviderInterface")
-		os.Exit(1)
-	}
-	if err = (&controller.ClusterIPAMClaimReconciler{
+	if err = (&ipam.ClusterIPAMReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAM")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

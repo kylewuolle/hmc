@@ -15,47 +15,57 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	"errors"
+	"net"
+	"net/netip"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ClusterIPAMClaimKind Denotes the clusteripamclaim resource Kind.
-const ClusterIPAMClaimKind = "ClusterIPAMClaim"
+const (
+	// ClusterIPAMClaimKind Denotes the clusteripamclaim resource Kind.
+	ClusterIPAMClaimKind = "ClusterIPAMClaim"
+
+	// InvalidClaimConditionType Denotes that the claim is invalid
+	InvalidClaimConditionType = "InvalidClaimCondition"
+)
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for cluster nodes
-	NodeIPPool IPPoolSpec `json:"nodeIPPool,omitempty"`
+	// The allocation requisitioning ip addresses for cluster nodes
+	NodeNetwork AddressSpaceSpec `json:"nodeNetwork,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for use by the k8s cluster itself
-	ClusterIPPool IPPoolSpec `json:"clusterIPPool,omitempty"`
+	// The allocation for requisitioning ip addresses for use by the k8s cluster itself
+	ClusterNetwork AddressSpaceSpec `json:"clusterNetwork,omitempty"`
 
-	// The IP Pool for requisitioning ip addresses for use by services such as load balancers
-	ExternalIPPool IPPoolSpec `json:"externalIPPool,omitempty"`
+	// The allocation for requisitioning ip addresses for use by services such as load balancers
+	ExternalNetwork AddressSpaceSpec `json:"externalNetwork,omitempty"`
+
+	ClusterDeploymentRef string `json:"clusterDeploymentRef"`
+
+	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
 }
 
-// IPPoolSpec defines the reference to an IP Pool and the number of ips to request
-type IPPoolSpec struct {
-	// A reference to the ip address pool
-	corev1.TypedLocalObjectReference `json:",inline"`
+// AddressSpaceSpec defines the ip address space that will be allocated
+type AddressSpaceSpec struct {
+	// Cidr notation of the allocated address space
+	Cidr string `json:"cidr,omitempty"`
 
-	// +kubebuilder:validation:Minimum=0
-
-	// The number of ip addresses to requisition from the ip pool
-	Count int `json:"count"`
+	// IPAddresses to be allocated
+	IPAddresses []string `json:"ipAddresses,omitempty"`
 }
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
 type ClusterIPAMClaimStatus struct {
-	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
-
 	// +kubebuilder:default:=false
 
 	// flag to indicate that the claim is bound because all ip addresses are allocated
 	Bound bool `json:"bound"`
+
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -83,4 +93,22 @@ type ClusterIPAMClaimList struct {
 
 func init() {
 	SchemeBuilder.Register(&ClusterIPAMClaim{}, &ClusterIPAMClaimList{})
+}
+
+func (c *ClusterIPAMClaim) Validate() error {
+	return errors.Join(c.Spec.NodeNetwork.validate(), c.Spec.ClusterNetwork.validate(), c.Spec.ExternalNetwork.validate())
+}
+
+func (a *AddressSpaceSpec) validate() error {
+	var err error
+
+	if len(a.Cidr) > 0 {
+		_, _, err = net.ParseCIDR(a.Cidr)
+	}
+
+	for _, ip := range a.IPAddresses {
+		_, ipErr := netip.ParseAddr(ip)
+		err = errors.Join(err, ipErr)
+	}
+	return err
 }
