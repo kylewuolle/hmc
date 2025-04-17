@@ -1,11 +1,12 @@
 apiVersion: k0rdent.mirantis.com/v1beta1
 kind: ClusterDeployment
 metadata:
-  name: vsphere-${CLUSTER_NAME_SUFFIX}
+  name: kyle-vsphere-test
   namespace: ${NAMESPACE}
 spec:
   template: vsphere-standalone-cp-0-2-1
   credential: vsphere-cluster-identity-cred
+  clusterIPAMClaimRef: test-claim
   config:
     clusterLabels: {}
     clusterAnnotations: {}
