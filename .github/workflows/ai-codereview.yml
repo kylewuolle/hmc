@@ -74,6 +74,9 @@ jobs:
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
           set -x
           for file in $(echo $ALL_CHANGED_FILES) ; do
+              case $file in
+                zz_*.go) echo "skipping review for $file";continue;;
+              esac
               echo "Review file ${file}"
               echo "\nReview file ${file}\n" >> ./summary.txt
               export PROMPT_VAR=$(cat "${file}")
