@@ -52,7 +52,7 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 		pool.Spec = v1alpha1.InfobloxIPPoolSpec{
 			Subnets: []v1alpha1.Subnet{
 				{
-					CIDR: config.ClusterIPAMClaim.Spec.ClusterNetwork.Cidr,
+					CIDR: config.ClusterIPAMClaim.Spec.ClusterNetwork.CIDR,
 				},
 			},
 		}

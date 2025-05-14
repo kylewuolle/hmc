@@ -48,7 +48,9 @@ spec:
           spec:
             description: ClusterIPAMSpec defines the desired state of ClusterIPAM
             properties:
-              ClusterIPAMClaimRefs:
+              clusterIPAMClaimRefs:
+                description: ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim]
+                  that this [ClusterIPAM] is bound to.
                 type: string
               provider:
                 description: The provider that this claim will be consumed by
@@ -58,7 +60,7 @@ spec:
             description: ClusterIPAMStatus defines the observed state of ClusterIPAM
             properties:
               phase:
-                description: The current phase of the ClusterIPAM.
+                description: Phase is the current phase of the ClusterIPAM.
                 enum:
                 - Pending
                 - Bound

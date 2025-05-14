@@ -32,27 +32,29 @@ const (
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
-	// The provider that this claim will be consumed by
+	// Provider is the name of the provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	// The allocation requisitioning ip addresses for cluster nodes
+	// NodeNetwork defines the allocation requisitioning ip addresses for cluster nodes
 	NodeNetwork AddressSpaceSpec `json:"nodeNetwork,omitempty"`
 
-	// The allocation for requisitioning ip addresses for use by the k8s cluster itself
+	// ClusterNetwork defines the allocation for requisitioning ip addresses for use by the k8s cluster itself
 	ClusterNetwork AddressSpaceSpec `json:"clusterNetwork,omitempty"`
 
-	// The allocation for requisitioning ip addresses for use by services such as load balancers
+	// ExternalNetwork defines the allocation for requisitioning ip addresses for use by services such as load balancers
 	ExternalNetwork AddressSpaceSpec `json:"externalNetwork,omitempty"`
 
-	ClusterDeploymentRef string `json:"clusterDeploymentRef"`
+	// Cluster is the reference to the cluster deployment that this claim is for
+	Cluster string `json:"cluster"`
 
+	// ClusterIPAMRef is the reference to the [ClusterIPAM] resource that this claim is for
 	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
 }
 
 // AddressSpaceSpec defines the ip address space that will be allocated
 type AddressSpaceSpec struct {
-	// Cidr notation of the allocated address space
-	Cidr string `json:"cidr,omitempty"`
+	// CIDR notation of the allocated address space
+	CIDR string `json:"cidr,omitempty"`
 
 	// IPAddresses to be allocated
 	IPAddresses []string `json:"ipAddresses,omitempty"`
@@ -62,8 +64,13 @@ type AddressSpaceSpec struct {
 type ClusterIPAMClaimStatus struct {
 	// +kubebuilder:default:=false
 
-	// flag to indicate that the claim is bound because all ip addresses are allocated
+	// Bound is a flag to indicate that the claim is bound because all ip addresses are allocated
 	Bound bool `json:"bound"`
+
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
 
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
@@ -102,8 +109,8 @@ func (c *ClusterIPAMClaim) Validate() error {
 func (a *AddressSpaceSpec) validate() error {
 	var err error
 
-	if len(a.Cidr) > 0 {
-		_, _, err = net.ParseCIDR(a.Cidr)
+	if len(a.CIDR) > 0 {
+		_, _, err = net.ParseCIDR(a.CIDR)
 	}
 
 	for _, ip := range a.IPAddresses {

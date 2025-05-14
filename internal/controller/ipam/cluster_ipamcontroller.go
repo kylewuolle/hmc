@@ -80,8 +80,8 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 func (r *ClusterIPAMReconciler) processProvider(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) (kcm.ClusterIPAMProviderData, error) {
 	clusterDeployment := &kcm.ClusterDeployment{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: clusterIPAMClaim.Spec.ClusterDeploymentRef, Namespace: clusterIPAMClaim.Namespace}, clusterDeployment); err != nil {
-		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterIPAMClaim.Spec.ClusterDeploymentRef, err)
+	if err := r.Client.Get(ctx, client.ObjectKey{Name: clusterIPAMClaim.Spec.Cluster, Namespace: clusterIPAMClaim.Namespace}, clusterDeployment); err != nil {
+		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterIPAMClaim.Spec.Cluster, err)
 	}
 
 	return adapter.Builder(clusterIPAMClaim.Spec.Provider).

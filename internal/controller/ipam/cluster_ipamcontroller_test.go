@@ -38,11 +38,11 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 				APIVersion: kcm.GroupVersion.String(),
 			},
 			Spec: kcm.ClusterIPAMClaimSpec{
-				Provider:             adapter.IPAMInclusterAdapterName,
-				ClusterNetwork:       ipPoolSpec,
-				NodeNetwork:          ipPoolSpec,
-				ExternalNetwork:      ipPoolSpec,
-				ClusterDeploymentRef: resourceName,
+				Provider:        adapter.IPAMInclusterAdapterName,
+				ClusterNetwork:  ipPoolSpec,
+				NodeNetwork:     ipPoolSpec,
+				ExternalNetwork: ipPoolSpec,
+				Cluster:         resourceName,
 			},
 		}
 	}

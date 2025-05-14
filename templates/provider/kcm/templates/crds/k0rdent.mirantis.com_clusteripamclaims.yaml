@@ -48,16 +48,20 @@ spec:
           spec:
             description: ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
             properties:
-              clusterDeploymentRef:
+              cluster:
+                description: Cluster is the reference to the cluster deployment that
+                  this claim is for
                 type: string
               clusterIPAMRef:
+                description: ClusterIPAMRef is the reference to the [ClusterIPAM]
+                  resource that this claim is for
                 type: string
               clusterNetwork:
-                description: The allocation for requisitioning ip addresses for use
-                  by the k8s cluster itself
+                description: ClusterNetwork defines the allocation for requisitioning
+                  ip addresses for use by the k8s cluster itself
                 properties:
                   cidr:
-                    description: Cidr notation of the allocated address space
+                    description: CIDR notation of the allocated address space
                     type: string
                   ipAddresses:
                     description: IPAddresses to be allocated
@@ -66,11 +70,11 @@ spec:
                     type: array
                 type: object
               externalNetwork:
-                description: The allocation for requisitioning ip addresses for use
-                  by services such as load balancers
+                description: ExternalNetwork defines the allocation for requisitioning
+                  ip addresses for use by services such as load balancers
                 properties:
                   cidr:
-                    description: Cidr notation of the allocated address space
+                    description: CIDR notation of the allocated address space
                     type: string
                   ipAddresses:
                     description: IPAddresses to be allocated
@@ -79,11 +83,11 @@ spec:
                     type: array
                 type: object
               nodeNetwork:
-                description: The allocation requisitioning ip addresses for cluster
-                  nodes
+                description: NodeNetwork defines the allocation requisitioning ip
+                  addresses for cluster nodes
                 properties:
                   cidr:
-                    description: Cidr notation of the allocated address space
+                    description: CIDR notation of the allocated address space
                     type: string
                   ipAddresses:
                     description: IPAddresses to be allocated
@@ -92,18 +96,19 @@ spec:
                     type: array
                 type: object
               provider:
-                description: The provider that this claim will be consumed by
+                description: Provider is the name of the provider that this claim
+                  will be consumed by
                 type: string
             required:
-            - clusterDeploymentRef
+            - cluster
             type: object
           status:
             description: ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
             properties:
               bound:
                 default: false
-                description: flag to indicate that the claim is bound because all
-                  ip addresses are allocated
+                description: Bound is a flag to indicate that the claim is bound because
+                  all ip addresses are allocated
                 type: boolean
               conditions:
                 items:
@@ -161,6 +166,9 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
             required:
             - bound
             type: object

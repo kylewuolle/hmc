@@ -24,7 +24,8 @@ type ClusterIPAMSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
-	ClusterIPAMClaimRef string `json:"ClusterIPAMClaimRefs,omitempty"`
+	// ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim] that this [ClusterIPAM] is bound to.
+	ClusterIPAMClaimRef string `json:"clusterIPAMClaimRefs,omitempty"`
 
 	// TODO: I think provider specific configuration should be here similar to how the cluster deployment is configured
 	//  Config *apiextensionsv1.JSON `json:"config,omitempty"`
@@ -35,6 +36,7 @@ type ClusterIPAMStatus struct {
 	// +kubebuilder:validation:Enum=Pending;Bound
 	// +kubebuilder:example=`Pending`
 
+	// Phase is the current phase of the ClusterIPAM.
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
 
 	ProviderData []ClusterIPAMProviderData `json:"providerData,omitempty"`
@@ -46,7 +48,7 @@ type ClusterIPAMProviderData struct {
 	Ready bool                  `json:"ready,omitempty"`
 }
 
-// The current phase of the ClusterIPAM.
+// ClusterIPAMPhase represents the phase of the [ClusterIPAM].
 type ClusterIPAMPhase string
 
 const (
