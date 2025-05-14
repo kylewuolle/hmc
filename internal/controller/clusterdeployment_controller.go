@@ -1140,7 +1140,10 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 
 		if cd.Spec.IPAMClaim.ClusterIPAMClaimRef != clusterIpamClaim.Name {
 			cd.Spec.IPAMClaim.ClusterIPAMClaimRef = claimName
-			return errors.Join(errClusterDeploymentSpecUpdated, r.Client.Update(ctx, cd))
+			if err := r.Client.Update(ctx, cd); err != nil {
+				return fmt.Errorf("failed to update ClusterDeployment: %w", err)
+			}
+			return errClusterDeploymentSpecUpdated
 		}
 	} else {
 		clusterIpamClaimRef := client.ObjectKey{Name: cd.Spec.IPAMClaim.ClusterIPAMClaimRef, Namespace: cd.Namespace}
@@ -1178,7 +1181,10 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 		}); err != nil {
 			return fmt.Errorf("failed to add IPAM Helm values: %w", err)
 		}
-		return errors.Join(errClusterDeploymentSpecUpdated, r.Client.Update(ctx, cd))
+		if err := r.Client.Update(ctx, cd); err != nil {
+			return fmt.Errorf("failed to update ClusterDeployment: %w", err)
+		}
+		return errClusterDeploymentSpecUpdated
 	}
 
 	return nil
