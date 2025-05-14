@@ -50,7 +50,8 @@ func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	if err := ci.Validate(); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to validate ClusterIPAMClaim: %w", err)
+		l.Error(err, "Failed to validate ClusterIPAMClaim")
+		return ctrl.Result{}, nil
 	}
 	if err := r.createOrUpdateClusterIPAM(ctx, ci); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ci.Namespace, ci.Name, err)
