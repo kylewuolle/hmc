@@ -65,7 +65,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if adapterData.Ready {
 		clusterIPAM.Status.Phase = kcm.ClusterIPAMPhaseBound
 	}
-	clusterIPAM.Status.ProviderData = []kcm.ClusterIPAMProviderData{adapterData}
+	clusterIPAM.Status.ProviderData = adapterData
 
 	if err := r.Status().Update(ctx, clusterIPAM); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update ClusterIPAM status: %w", err)

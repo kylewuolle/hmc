@@ -26,9 +26,6 @@ type ClusterIPAMSpec struct {
 
 	// ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim] that this [ClusterIPAM] is bound to.
 	ClusterIPAMClaimRef string `json:"clusterIPAMClaimRefs,omitempty"`
-
-	// TODO: I think provider specific configuration should be here similar to how the cluster deployment is configured
-	//  Config *apiextensionsv1.JSON `json:"config,omitempty"`
 }
 
 // ClusterIPAMStatus defines the observed state of ClusterIPAM
@@ -39,13 +36,17 @@ type ClusterIPAMStatus struct {
 	// Phase is the current phase of the ClusterIPAM.
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
 
-	ProviderData []ClusterIPAMProviderData `json:"providerData,omitempty"`
+	// ProviderData is the provider specific data produced for the ClusterIPAM
+	ProviderData ClusterIPAMProviderData `json:"providerData,omitempty"`
 }
 
 type ClusterIPAMProviderData struct {
-	Data  *apiextensionsv1.JSON `json:"config,omitempty"`
-	Name  string                `json:"name,omitempty"`
-	Ready bool                  `json:"ready,omitempty"`
+	// Data is the IPAM provider specific data
+	Data *apiextensionsv1.JSON `json:"config,omitempty"`
+	// Name of the IPAM provider data
+	Name string `json:"name,omitempty"`
+	// Ready indicates that the IPAM provider data is ready
+	Ready bool `json:"ready,omitempty"`
 }
 
 // ClusterIPAMPhase represents the phase of the [ClusterIPAM].
