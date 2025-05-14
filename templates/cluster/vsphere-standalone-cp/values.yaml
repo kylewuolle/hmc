@@ -2,7 +2,7 @@
 controlPlaneNumber: 3
 workersNumber: 2
 
-ipamEnabled: true
+ipamEnabled: false
 
 ipPool:
   data:

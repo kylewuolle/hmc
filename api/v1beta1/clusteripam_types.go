@@ -43,8 +43,8 @@ type ClusterIPAMStatus struct {
 }
 
 type ClusterIPAMProviderData struct {
-	Name  string                `json:"name,omitempty"`
 	Data  *apiextensionsv1.JSON `json:"config,omitempty"`
+	Name  string                `json:"name,omitempty"`
 	Ready bool                  `json:"ready,omitempty"`
 }
 

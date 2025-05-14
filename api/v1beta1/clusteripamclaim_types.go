@@ -35,6 +35,12 @@ type ClusterIPAMClaimSpec struct {
 	// Provider is the name of the provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
+	// Cluster is the reference to the [ClusterDeployment] that this claim is for
+	Cluster string `json:"cluster"`
+
+	// ClusterIPAMRef is the reference to the [ClusterIPAM] resource that this claim is for
+	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
+
 	// NodeNetwork defines the allocation requisitioning ip addresses for cluster nodes
 	NodeNetwork AddressSpaceSpec `json:"nodeNetwork,omitempty"`
 
@@ -43,12 +49,6 @@ type ClusterIPAMClaimSpec struct {
 
 	// ExternalNetwork defines the allocation for requisitioning ip addresses for use by services such as load balancers
 	ExternalNetwork AddressSpaceSpec `json:"externalNetwork,omitempty"`
-
-	// Cluster is the reference to the cluster deployment that this claim is for
-	Cluster string `json:"cluster"`
-
-	// ClusterIPAMRef is the reference to the [ClusterIPAM] resource that this claim is for
-	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`
 }
 
 // AddressSpaceSpec defines the ip address space that will be allocated
@@ -62,17 +62,18 @@ type AddressSpaceSpec struct {
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
 type ClusterIPAMClaimStatus struct {
-	// +kubebuilder:default:=false
-
-	// Bound is a flag to indicate that the claim is bound because all ip addresses are allocated
-	Bound bool `json:"bound"`
-
 	// +patchMergeKey=type
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
 
+	// Conditions contains details for the current state of the [ClusterIPAMClaim]
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// +kubebuilder:default:=false
+
+	// Bound is a flag to indicate that the claim is bound because all ip addresses are allocated
+	Bound bool `json:"bound"`
 }
 
 // +kubebuilder:object:root=true

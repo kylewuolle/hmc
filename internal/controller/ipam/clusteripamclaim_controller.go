@@ -21,7 +21,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -33,8 +32,6 @@ import (
 
 type ClusterIPAMClaimReconciler struct {
 	client.Client
-
-	DynamicClient *dynamic.DynamicClient
 }
 
 func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -52,10 +49,11 @@ func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	if err := ci.Validate(); err == nil {
-		if err := r.createOrUpdateClusterIPAM(ctx, ci); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ci.Namespace, ci.Name, err)
-		}
+	if err := ci.Validate(); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to validate ClusterIPAMClaim: %w", err)
+	}
+	if err := r.createOrUpdateClusterIPAM(ctx, ci); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create ClusterIPAM %s/%s: %w", ci.Namespace, ci.Name, err)
 	}
 
 	return ctrl.Result{}, r.updateStatus(ctx, ci)
@@ -126,12 +124,6 @@ func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIP
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterIPAMClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	dc, err := dynamic.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-	r.DynamicClient = dc
-
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.TypedOptions[ctrl.Request]{
 			RateLimiter: ratelimit.DefaultFastSlow(),

@@ -666,7 +666,7 @@ spec:
                       This allows for dynamic IP address allocation during cluster provisioning.
                     properties:
                       cluster:
-                        description: Cluster is the reference to the cluster deployment
+                        description: Cluster is the reference to the [ClusterDeployment]
                           that this claim is for
                         type: string
                       clusterIPAMRef:

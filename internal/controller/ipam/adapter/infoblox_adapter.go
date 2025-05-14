@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/telekom/cluster-api-ipam-provider-infoblox/api/v1alpha1"
+	infobloxv1alpha1 "github.com/telekom/cluster-api-ipam-provider-infoblox/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,16 +36,14 @@ const (
 	InfobloxIPPoolKind = "InfobloxIPPool"
 )
 
-type InfobloxAdapter struct {
-	IPAMAdapter
-}
+type InfobloxAdapter struct{}
 
 func NewInfobloxAdapter() *InfobloxAdapter {
 	return &InfobloxAdapter{}
 }
 
 func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c client.Client) (kcm.ClusterIPAMProviderData, error) {
-	pool := v1alpha1.InfobloxIPPool{
+	pool := infobloxv1alpha1.InfobloxIPPool{
 		ObjectMeta: metav1.ObjectMeta{Name: config.ClusterIPAMClaim.Name, Namespace: config.ClusterIPAMClaim.Namespace},
 	}
 
@@ -53,8 +51,8 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 	config.ClusterIPAMClaim.APIVersion = kcm.GroupVersion.Version
 	utils.AddOwnerReference(&pool, config.ClusterIPAMClaim)
 	_, err := ctrl.CreateOrUpdate(ctx, c, &pool, func() error {
-		pool.Spec = v1alpha1.InfobloxIPPoolSpec{
-			Subnets: []v1alpha1.Subnet{
+		pool.Spec = infobloxv1alpha1.InfobloxIPPoolSpec{
+			Subnets: []infobloxv1alpha1.Subnet{
 				{
 					CIDR: config.ClusterIPAMClaim.Spec.ClusterNetwork.CIDR,
 				},
@@ -66,7 +64,7 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to create or update ip pool resource: %w", err)
 	}
 
-	poolAPIGroup := v1alpha1.GroupVersion.String()
+	poolAPIGroup := infobloxv1alpha1.GroupVersion.String()
 	poolRef := corev1.TypedLocalObjectReference{
 		APIGroup: &poolAPIGroup,
 		Kind:     InfobloxIPPoolKind,
@@ -76,10 +74,6 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 	poolData, err := json.Marshal(poolRef)
 	if err != nil {
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to marshal ip pool data: %w", err)
-	}
-
-	if err := c.Get(ctx, client.ObjectKey{Name: config.ClusterIPAMClaim.Name, Namespace: config.ClusterIPAMClaim.Namespace}, &pool); client.IgnoreNotFound(err) != nil {
-		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to determine if ip pool is ready: %w", err)
 	}
 
 	for _, condition := range pool.Status.Conditions {

@@ -83,11 +83,15 @@ func (r *ClusterIPAMReconciler) processProvider(ctx context.Context, clusterIPAM
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterIPAMClaim.Spec.Cluster, err)
 	}
 
-	return adapter.Builder(clusterIPAMClaim.Spec.Provider).
-		BindAddress(ctx, adapter.IPAMConfig{
-			ClusterDeployment: clusterDeployment,
-			ClusterIPAMClaim:  clusterIPAMClaim,
-		}, r.Client)
+	ipamAdapter, err := adapter.Builder(clusterIPAMClaim.Spec.Provider)
+	if err != nil {
+		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to build IPAM adapter for provider '%s': %w", clusterIPAMClaim.Spec.Provider, err)
+	}
+
+	return ipamAdapter.BindAddress(ctx, adapter.IPAMConfig{
+		ClusterDeployment: clusterDeployment,
+		ClusterIPAMClaim:  clusterIPAMClaim,
+	}, r.Client)
 }
 
 // SetupWithManager sets up the controller with the Manager.

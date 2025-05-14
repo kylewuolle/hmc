@@ -16,6 +16,7 @@ package adapter
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,13 +34,13 @@ type IPAMConfig struct {
 	ClusterIPAMClaim  *kcm.ClusterIPAMClaim
 }
 
-func Builder(name string) IPAMAdapter {
+func Builder(name string) (IPAMAdapter, error) {
 	switch name {
 	case IPAMInClusterAdapterName:
-		return NewInClusterAdapter()
+		return NewInClusterAdapter(), nil
 	case InfobloxAdapterName:
-		return NewInfobloxAdapter()
+		return NewInfobloxAdapter(), nil
 	default:
-		return nil
+		return nil, fmt.Errorf("unknown provider name '%s'", name)
 	}
 }

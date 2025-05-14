@@ -31,7 +31,7 @@ import (
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	ipamprovider "sigs.k8s.io/cluster-api-ipam-provider-in-cluster/api/v1alpha2"
+	inclusteripamv1alpha2 "sigs.k8s.io/cluster-api-ipam-provider-in-cluster/api/v1alpha2"
 	capioperator "sigs.k8s.io/cluster-api-operator/api/v1alpha2"
 	clusterapiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
@@ -108,7 +108,7 @@ var _ = BeforeSuite(func() {
 	Expect(velerov1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(libsveltosv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(ipamv1.AddToScheme(scheme.Scheme)).To(Succeed())
-	Expect(ipamprovider.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(inclusteripamv1alpha2.AddToScheme(scheme.Scheme)).To(Succeed())
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
