@@ -31,6 +31,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 	createIPAMClaim := func(resourceName, namespace string) kcm.ClusterIPAMClaim {
 		By("Creating a new ClusterIPAMClaim resource")
 		ipPoolSpec := kcm.AddressSpaceSpec{}
+		clusterNetworks := kcm.ClusterNetworks{}
 		return kcm.ClusterIPAMClaim{
 			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: namespace},
 			TypeMeta: metav1.TypeMeta{
@@ -39,7 +40,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			},
 			Spec: kcm.ClusterIPAMClaimSpec{
 				Provider:        adapter.IPAMInClusterAdapterName,
-				ClusterNetwork:  ipPoolSpec,
+				ClusterNetwork:  clusterNetworks,
 				NodeNetwork:     ipPoolSpec,
 				ExternalNetwork: ipPoolSpec,
 				Cluster:         resourceName,

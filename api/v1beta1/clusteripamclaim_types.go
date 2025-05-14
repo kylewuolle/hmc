@@ -16,6 +16,7 @@ package v1beta1
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -45,7 +46,7 @@ type ClusterIPAMClaimSpec struct {
 	NodeNetwork AddressSpaceSpec `json:"nodeNetwork,omitempty"`
 
 	// ClusterNetwork defines the allocation for requisitioning ip addresses for use by the k8s cluster itself
-	ClusterNetwork AddressSpaceSpec `json:"clusterNetwork,omitempty"`
+	ClusterNetwork ClusterNetworks `json:"clusterNetwork,omitempty"`
 
 	// ExternalNetwork defines the allocation for requisitioning ip addresses for use by services such as load balancers
 	ExternalNetwork AddressSpaceSpec `json:"externalNetwork,omitempty"`
@@ -58,6 +59,15 @@ type AddressSpaceSpec struct {
 
 	// IPAddresses to be allocated
 	IPAddresses []string `json:"ipAddresses,omitempty"`
+}
+
+// ClusterNetworks defines the ip address space for the cluster network
+type ClusterNetworks struct {
+	// Pods defines the CIDR for pod networking
+	Pods string `json:"pods,omitempty"`
+
+	// Services defines the CIDR for services
+	Services string `json:"services,omitempty"`
 }
 
 // ClusterIPAMClaimStatus defines the observed state of ClusterIPAMClaim
@@ -119,4 +129,22 @@ func (a *AddressSpaceSpec) validate() error {
 		err = errors.Join(err, ipErr)
 	}
 	return err
+}
+
+func (c *ClusterNetworks) validate() error {
+	var errs []error
+
+	if len(c.Pods) > 0 {
+		if _, _, err := net.ParseCIDR(c.Pods); err != nil {
+			errs = append(errs, fmt.Errorf("invalid Pods CIDR %q: %w", c.Pods, err))
+		}
+	}
+
+	if len(c.Services) > 0 {
+		if _, _, err := net.ParseCIDR(c.Services); err != nil {
+			errs = append(errs, fmt.Errorf("invalid Services CIDR %q: %w", c.Services, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }

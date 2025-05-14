@@ -23,8 +23,11 @@ import (
 type ClusterIPAMSpec struct {
 	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox
 
-	// The provider that this claim will be consumed by
+	// The Provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
+
+	// The NetworkType that this claim is for
+	NetworkType string `json:"networkType,omitempty"`
 
 	// ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim] that this [ClusterIPAM] is bound to.
 	ClusterIPAMClaimRef string `json:"clusterIPAMClaimRefs,omitempty"`

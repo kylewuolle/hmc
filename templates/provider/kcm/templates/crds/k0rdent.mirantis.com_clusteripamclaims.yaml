@@ -60,14 +60,12 @@ spec:
                 description: ClusterNetwork defines the allocation for requisitioning
                   ip addresses for use by the k8s cluster itself
                 properties:
-                  cidr:
-                    description: CIDR notation of the allocated address space
+                  pods:
+                    description: Pods defines the CIDR for pod networking
                     type: string
-                  ipAddresses:
-                    description: IPAddresses to be allocated
-                    items:
-                      type: string
-                    type: array
+                  services:
+                    description: Services defines the CIDR for services
+                    type: string
                 type: object
               externalNetwork:
                 description: ExternalNetwork defines the allocation for requisitioning

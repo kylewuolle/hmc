@@ -52,8 +52,11 @@ spec:
                 description: ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim]
                   that this [ClusterIPAM] is bound to.
                 type: string
+              networkType:
+                description: The NetworkType that this claim is for
+                type: string
               provider:
-                description: The provider that this claim will be consumed by
+                description: The Provider that this claim will be consumed by
                 enum:
                 - in-cluster
                 - ipam-infoblox
