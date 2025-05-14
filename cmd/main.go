@@ -351,6 +351,12 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManagementBackup")
 		os.Exit(1)
 	}
+	if err = (&controller.ProviderInterfaceReconciler{
+		Client: mgr.GetClient(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ProviderInterface")
+		os.Exit(1)
+	}
 
 	if enableIPAM {
 		if err = (&ipam.ClusterIPAMClaimReconciler{
@@ -359,13 +365,14 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
 			os.Exit(1)
 		}
+		if err = (&ipam.ClusterIPAMReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAM")
+			os.Exit(1)
+		}
 	}
-	if err = (&ipam.ClusterIPAMReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAM")
-		os.Exit(1)
-	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
