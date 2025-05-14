@@ -20,7 +20,6 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -31,8 +30,8 @@ import (
 )
 
 type ClusterIPAMReconciler struct {
-	Client             client.Client
-	Scheme             *runtime.Scheme
+	client.Client
+
 	defaultRequeueTime time.Duration
 }
 
@@ -41,7 +40,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	l.Info("Reconciling ClusterIPAM")
 
 	clusterIPAM := &kcm.ClusterIPAM{}
-	if err := r.Client.Get(ctx, req.NamespacedName, clusterIPAM); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, clusterIPAM); err != nil {
 		if apierrors.IsNotFound(err) {
 			l.Info("ClusterIPAM not found, ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -52,7 +51,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	clusterIPAMClaim := &kcm.ClusterIPAMClaim{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: clusterIPAM.Spec.ClusterIPAMClaimRef, Namespace: clusterIPAM.Namespace}, clusterIPAMClaim); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: clusterIPAM.Spec.ClusterIPAMClaimRef, Namespace: clusterIPAM.Namespace}, clusterIPAMClaim); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get ClusterIPAMClaim: %w", err)
 	}
 
@@ -68,7 +67,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	clusterIPAM.Status.ProviderData = []kcm.ClusterIPAMProviderData{adapterData}
 
-	if err := r.Client.Status().Update(ctx, clusterIPAM); err != nil {
+	if err := r.Status().Update(ctx, clusterIPAM); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update ClusterIPAM status: %w", err)
 	}
 
@@ -80,7 +79,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 func (r *ClusterIPAMReconciler) processProvider(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) (kcm.ClusterIPAMProviderData, error) {
 	clusterDeployment := &kcm.ClusterDeployment{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: clusterIPAMClaim.Spec.Cluster, Namespace: clusterIPAMClaim.Namespace}, clusterDeployment); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: clusterIPAMClaim.Spec.Cluster, Namespace: clusterIPAMClaim.Namespace}, clusterDeployment); err != nil {
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterIPAMClaim.Spec.Cluster, err)
 	}
 

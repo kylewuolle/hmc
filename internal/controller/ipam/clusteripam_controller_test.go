@@ -38,7 +38,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 				APIVersion: kcm.GroupVersion.String(),
 			},
 			Spec: kcm.ClusterIPAMClaimSpec{
-				Provider:        adapter.IPAMInclusterAdapterName,
+				Provider:        adapter.IPAMInClusterAdapterName,
 				ClusterNetwork:  ipPoolSpec,
 				NodeNetwork:     ipPoolSpec,
 				ExternalNetwork: ipPoolSpec,
@@ -56,7 +56,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 				APIVersion: kcm.GroupVersion.String(),
 			},
 			Spec: kcm.ClusterIPAMSpec{
-				Provider:            adapter.IPAMInclusterAdapterName,
+				Provider:            adapter.IPAMInClusterAdapterName,
 				ClusterIPAMClaimRef: resourceName,
 			},
 		}
@@ -110,7 +110,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			By("Reconciling the created resource")
 
 			namespacedName := types.NamespacedName{Name: resourceName, Namespace: namespace.Name}
-			reconciler := &ClusterIPAMReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+			reconciler := &ClusterIPAMReconciler{Client: k8sClient}
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
 			Expect(err).NotTo(HaveOccurred())
 
@@ -119,7 +119,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			Expect(k8sClient.Get(ctx, namespacedName, clusterIPAM)).To(Succeed())
 
 			By("Verifying the provider")
-			Expect(clusterIPAM.Spec.Provider).To(Equal(adapter.IPAMInclusterAdapterName))
+			Expect(clusterIPAM.Spec.Provider).To(Equal(adapter.IPAMInClusterAdapterName))
 		})
 	})
 })

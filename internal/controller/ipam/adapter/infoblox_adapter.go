@@ -30,7 +30,11 @@ import (
 	"github.com/K0rdent/kcm/internal/utils"
 )
 
-const InflobloxAdapterName = "infoblox"
+const (
+	InfobloxAdapterName = "infoblox"
+
+	InfobloxIPPoolKind = "InfobloxIPPool"
+)
 
 type InfobloxAdapter struct {
 	IPAMAdapter
@@ -45,7 +49,7 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 		ObjectMeta: metav1.ObjectMeta{Name: config.ClusterIPAMClaim.Name, Namespace: config.ClusterIPAMClaim.Namespace},
 	}
 
-	config.ClusterIPAMClaim.Kind = "ClusterIPAMClaim"
+	config.ClusterIPAMClaim.Kind = kcm.ClusterIPAMClaimKind
 	config.ClusterIPAMClaim.APIVersion = kcm.GroupVersion.Version
 	utils.AddOwnerReference(&pool, config.ClusterIPAMClaim)
 	_, err := ctrl.CreateOrUpdate(ctx, c, &pool, func() error {
@@ -65,7 +69,7 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 	poolAPIGroup := v1alpha1.GroupVersion.String()
 	poolRef := corev1.TypedLocalObjectReference{
 		APIGroup: &poolAPIGroup,
-		Kind:     "InfobloxIPPool",
+		Kind:     InfobloxIPPoolKind,
 		Name:     config.ClusterIPAMClaim.Name,
 	}
 
@@ -80,9 +84,9 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 
 	for _, condition := range pool.Status.Conditions {
 		if condition.Status != metav1.StatusSuccess {
-			return kcm.ClusterIPAMProviderData{Name: "IpPool", Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: false}, nil
+			return kcm.ClusterIPAMProviderData{Name: ClusterDeploymentConfigKeyName, Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: false}, nil
 		}
 	}
 
-	return kcm.ClusterIPAMProviderData{Name: "IpPool", Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: true}, nil
+	return kcm.ClusterIPAMProviderData{Name: ClusterDeploymentConfigKeyName, Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: true}, nil
 }

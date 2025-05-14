@@ -355,7 +355,6 @@ func main() {
 	if enableIPAM {
 		if err = (&ipam.ClusterIPAMClaimReconciler{
 			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAMClaim")
 			os.Exit(1)
@@ -363,7 +362,6 @@ func main() {
 	}
 	if err = (&ipam.ClusterIPAMReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterIPAM")
 		os.Exit(1)

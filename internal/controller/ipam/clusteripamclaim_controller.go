@@ -21,7 +21,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,8 +32,8 @@ import (
 )
 
 type ClusterIPAMClaimReconciler struct {
-	Client        client.Client
-	Scheme        *runtime.Scheme
+	client.Client
+
 	DynamicClient *dynamic.DynamicClient
 }
 
@@ -43,7 +42,7 @@ func (r *ClusterIPAMClaimReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	l.Info("Reconciling ClusterIPAMClaim")
 
 	ci := &kcm.ClusterIPAMClaim{}
-	if err := r.Client.Get(ctx, req.NamespacedName, ci); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, ci); err != nil {
 		if apierrors.IsNotFound(err) {
 			l.Info("ClusterIPAMClaim not found, ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -76,7 +75,7 @@ func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Conte
 
 	clusterIPAMSpec := clusterIPAM.Spec
 
-	if err := controllerutil.SetControllerReference(clusterIPAMClaim, &clusterIPAM, r.Client.Scheme()); err != nil {
+	if err := controllerutil.SetControllerReference(clusterIPAMClaim, &clusterIPAM, r.Scheme()); err != nil {
 		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
@@ -87,6 +86,10 @@ func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Conte
 	if err != nil {
 		return fmt.Errorf("failed to create or update ClusterIPAM %s/%s: %w", clusterIPAMClaim.Namespace, clusterIPAMClaim.Name, err)
 	}
+	if clusterIPAMClaim.Spec.ClusterIPAMRef != clusterIPAM.Name {
+		clusterIPAMClaim.Spec.ClusterIPAMRef = clusterIPAM.Name
+		return r.Update(ctx, clusterIPAMClaim)
+	}
 
 	return nil
 }
@@ -96,11 +99,10 @@ func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIP
 	l.Info("Update ClusterIPAMClaim status")
 
 	clusterIPAM := kcm.ClusterIPAM{}
-	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(clusterIPAMClaim), &clusterIPAM); client.IgnoreNotFound(err) != nil {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(clusterIPAMClaim), &clusterIPAM); client.IgnoreNotFound(err) != nil {
 		return fmt.Errorf("failed to get ClusterIPAM %s: %w", client.ObjectKeyFromObject(clusterIPAMClaim), err)
 	}
 
-	clusterIPAMClaim.Spec.ClusterIPAMRef = clusterIPAMClaim.Name
 	clusterIPAMClaim.Status.Bound = clusterIPAM.Status.Phase == kcm.ClusterIPAMPhaseBound
 
 	apimeta.RemoveStatusCondition(&clusterIPAMClaim.Status.Conditions, kcm.InvalidClaimConditionType)
@@ -115,7 +117,7 @@ func (r *ClusterIPAMClaimReconciler) updateStatus(ctx context.Context, clusterIP
 			})
 	}
 
-	if err := r.Client.Status().Update(ctx, clusterIPAMClaim); err != nil {
+	if err := r.Status().Update(ctx, clusterIPAMClaim); err != nil {
 		return fmt.Errorf("failed to update ClusterIPAMClaim status: %w", err)
 	}
 

@@ -22,6 +22,8 @@ import (
 	kcm "github.com/K0rdent/kcm/api/v1beta1"
 )
 
+const ClusterDeploymentConfigKeyName = "IpPool"
+
 type IPAMAdapter interface {
 	BindAddress(ctx context.Context, config IPAMConfig, c client.Client) (kcm.ClusterIPAMProviderData, error)
 }
@@ -33,9 +35,9 @@ type IPAMConfig struct {
 
 func Builder(name string) IPAMAdapter {
 	switch name {
-	case IPAMInclusterAdapterName:
+	case IPAMInClusterAdapterName:
 		return NewInClusterAdapter()
-	case InflobloxAdapterName:
+	case InfobloxAdapterName:
 		return NewInfobloxAdapter()
 	default:
 		return nil

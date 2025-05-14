@@ -30,7 +30,11 @@ import (
 	"github.com/K0rdent/kcm/internal/utils"
 )
 
-const IPAMInclusterAdapterName = "ipam-in-cluster"
+const (
+	IPAMInClusterAdapterName = "ipam-in-cluster"
+
+	InClusterIPPoolKind = "InClusterIPPool"
+)
 
 type InClusterAdapter struct {
 	IPAMAdapter
@@ -50,7 +54,7 @@ func (InClusterAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cl
 		ObjectMeta: metav1.ObjectMeta{Name: config.ClusterIPAMClaim.Name, Namespace: config.ClusterIPAMClaim.Namespace},
 	}
 
-	config.ClusterIPAMClaim.Kind = "ClusterIPAMClaim"
+	config.ClusterIPAMClaim.Kind = kcm.ClusterIPAMClaimKind
 	config.ClusterIPAMClaim.APIVersion = kcm.GroupVersion.Version
 	utils.AddOwnerReference(&pool, config.ClusterIPAMClaim)
 	_, err := ctrl.CreateOrUpdate(ctx, c, &pool, func() error {
@@ -66,7 +70,7 @@ func (InClusterAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cl
 	poolAPIGroup := v1alpha2.GroupVersion.String()
 	poolRef := corev1.TypedLocalObjectReference{
 		APIGroup: &poolAPIGroup,
-		Kind:     "InClusterIPPool",
+		Kind:     InClusterIPPoolKind,
 		Name:     config.ClusterIPAMClaim.Name,
 	}
 
@@ -80,7 +84,7 @@ func (InClusterAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cl
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to determine if ip pool is ready: %w", err)
 	}
 
-	return kcm.ClusterIPAMProviderData{Name: "IpPool", Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: ready}, nil
+	return kcm.ClusterIPAMProviderData{Name: ClusterDeploymentConfigKeyName, Data: &apiextensionsv1.JSON{Raw: poolData}, Ready: ready}, nil
 }
 
 func isReady(ctx context.Context, config IPAMConfig, c client.Client) (bool, error) {
