@@ -4,9 +4,9 @@ workersNumber: 2
 
 ipamEnabled: true
 
-IpPool:
+ipPool:
   data:
-    apigroup: ipam.cluster.x-k8s.io/v1alpha2
+    apiGroup: ipam.cluster.x-k8s.io/v1alpha2
     kind: InClusterIPPool
     name: test-claim
 

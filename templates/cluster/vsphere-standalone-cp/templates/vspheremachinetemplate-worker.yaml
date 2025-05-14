@@ -17,7 +17,7 @@ spec:
             networkName: {{ .Values.worker.network }}
           {{- if .Values.ipamEnabled  }}
             addressesFromPools:
-             - {{- toYaml .Values.IpPool.data | nindent 14 }}
+             - {{- toYaml .Values.ipPool.data | nindent 14 }}
           {{- end }}
       numCPUs: {{ .Values.worker.cpus }}
       os: Linux

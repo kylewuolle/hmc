@@ -1113,7 +1113,7 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 			return nil
 		})
 		if err != nil {
-			return false, fmt.Errorf("failed to create ClusterIPAMClaim: %w", err)
+			return false, fmt.Errorf("failed to create or update ClusterIPAMClaim: %w", err)
 		}
 
 		if cd.Spec.IPAMClaim.ClusterIPAMClaimRef != clusterIpamClaim.Name {

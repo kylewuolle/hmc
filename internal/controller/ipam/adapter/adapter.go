@@ -22,7 +22,7 @@ import (
 	kcm "github.com/K0rdent/kcm/api/v1beta1"
 )
 
-const ClusterDeploymentConfigKeyName = "IpPool"
+const ClusterDeploymentConfigKeyName = "ipPool"
 
 type IPAMAdapter interface {
 	BindAddress(ctx context.Context, config IPAMConfig, c client.Client) (kcm.ClusterIPAMProviderData, error)
