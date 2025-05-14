@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	InfobloxAdapterName = "infoblox"
+	InfobloxAdapterName = "ipam-infoblox"
 
 	InfobloxIPPoolKind = "InfobloxIPPool"
 )

@@ -54,6 +54,9 @@ spec:
                 type: string
               provider:
                 description: The provider that this claim will be consumed by
+                enum:
+                - in-cluster
+                - ipam-infoblox
                 type: string
             type: object
           status:
