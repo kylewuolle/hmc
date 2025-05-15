@@ -28,15 +28,24 @@ const (
 
 	// InvalidClaimConditionType Denotes that the claim is invalid
 	InvalidClaimConditionType = "InvalidClaimCondition"
+
+	InClusterProviderName = "in-cluster"
+	InfobloxProviderName  = "ipam-infoblox"
 )
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
+	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox
+
 	// Provider is the name of the provider that this claim will be consumed by
-	Provider string `json:"provider,omitempty"`
+	Provider string `json:"provider"`
+
+	// +kubebuilder:validation:XValidation:rule="oldSelf == '' || self == oldSelf",message="Cluster reference is immutable once set"
 
 	// Cluster is the reference to the [ClusterDeployment] that this claim is for
-	Cluster string `json:"cluster"`
+	Cluster string `json:"cluster,omitempty"`
+
+	// +kubebuilder:validation:XValidation:rule="oldSelf == '' || self == oldSelf",message="ClusterIPAM reference is immutable once set"
 
 	// ClusterIPAMRef is the reference to the [ClusterIPAM] resource that this claim is for
 	ClusterIPAMRef string `json:"clusterIPAMRef,omitempty"`

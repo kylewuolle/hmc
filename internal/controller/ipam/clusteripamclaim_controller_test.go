@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kcm "github.com/K0rdent/kcm/api/v1beta1"
-	"github.com/K0rdent/kcm/internal/controller/ipam/adapter"
 )
 
 var _ = Describe("ClusterIPAMClaim Controller", func() {
@@ -34,7 +33,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 		return kcm.ClusterIPAMClaim{
 			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: namespace},
 			Spec: kcm.ClusterIPAMClaimSpec{
-				Provider:        adapter.IPAMInClusterAdapterName,
+				Provider:        kcm.InClusterProviderName,
 				ClusterNetwork:  ipPoolSpec,
 				NodeNetwork:     ipPoolSpec,
 				ExternalNetwork: ipPoolSpec,
@@ -75,7 +74,7 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			Expect(k8sClient.Get(ctx, namespacedName, clusterIPAM)).To(Succeed())
 
 			By("Verifying the provider")
-			Expect(clusterIPAM.Spec.Provider).To(Equal(adapter.IPAMInClusterAdapterName))
+			Expect(clusterIPAM.Spec.Provider).To(Equal(kcm.InClusterProviderName))
 		})
 	})
 })

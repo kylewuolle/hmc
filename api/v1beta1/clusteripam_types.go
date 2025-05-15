@@ -26,6 +26,8 @@ type ClusterIPAMSpec struct {
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`
 
+	// +kubebuilder:validation:XValidation:rule="oldSelf == '' || self == oldSelf",message="Claim reference is immutable once set"
+
 	// ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim] that this [ClusterIPAM] is bound to.
 	ClusterIPAMClaimRef string `json:"clusterIPAMClaimRefs,omitempty"`
 }

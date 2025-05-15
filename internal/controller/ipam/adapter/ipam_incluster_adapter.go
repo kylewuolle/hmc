@@ -31,8 +31,6 @@ import (
 )
 
 const (
-	IPAMInClusterAdapterName = "in-cluster"
-
 	InClusterIPPoolKind = "InClusterIPPool"
 )
 

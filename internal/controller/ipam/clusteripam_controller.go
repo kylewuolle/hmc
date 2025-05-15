@@ -78,19 +78,13 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 }
 
 func (r *ClusterIPAMReconciler) processProvider(ctx context.Context, clusterIPAMClaim *kcm.ClusterIPAMClaim) (kcm.ClusterIPAMProviderData, error) {
-	clusterDeployment := &kcm.ClusterDeployment{}
-	if err := r.Get(ctx, client.ObjectKey{Name: clusterIPAMClaim.Spec.Cluster, Namespace: clusterIPAMClaim.Namespace}, clusterDeployment); err != nil {
-		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterIPAMClaim.Spec.Cluster, err)
-	}
-
 	ipamAdapter, err := adapter.Builder(clusterIPAMClaim.Spec.Provider)
 	if err != nil {
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to build IPAM adapter for provider '%s': %w", clusterIPAMClaim.Spec.Provider, err)
 	}
 
 	return ipamAdapter.BindAddress(ctx, adapter.IPAMConfig{
-		ClusterDeployment: clusterDeployment,
-		ClusterIPAMClaim:  clusterIPAMClaim,
+		ClusterIPAMClaim: clusterIPAMClaim,
 	}, r.Client)
 }
 

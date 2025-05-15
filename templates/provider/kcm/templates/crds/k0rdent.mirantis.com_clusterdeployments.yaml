@@ -669,10 +669,16 @@ spec:
                         description: Cluster is the reference to the [ClusterDeployment]
                           that this claim is for
                         type: string
+                        x-kubernetes-validations:
+                        - message: Cluster reference is immutable once set
+                          rule: oldSelf == '' || self == oldSelf
                       clusterIPAMRef:
                         description: ClusterIPAMRef is the reference to the [ClusterIPAM]
                           resource that this claim is for
                         type: string
+                        x-kubernetes-validations:
+                        - message: ClusterIPAM reference is immutable once set
+                          rule: oldSelf == '' || self == oldSelf
                       clusterNetwork:
                         description: ClusterNetwork defines the allocation for requisitioning
                           ip addresses for use by the k8s cluster itself
@@ -715,9 +721,12 @@ spec:
                       provider:
                         description: Provider is the name of the provider that this
                           claim will be consumed by
+                        enum:
+                        - in-cluster
+                        - ipam-infoblox
                         type: string
                     required:
-                    - cluster
+                    - provider
                     type: object
                 type: object
               propagateCredentials:

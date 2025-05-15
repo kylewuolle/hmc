@@ -52,6 +52,9 @@ spec:
                 description: ClusterIPAMClaimRef is a reference to the [ClusterIPAMClaim]
                   that this [ClusterIPAM] is bound to.
                 type: string
+                x-kubernetes-validations:
+                - message: Claim reference is immutable once set
+                  rule: oldSelf == '' || self == oldSelf
               provider:
                 description: The provider that this claim will be consumed by
                 enum:

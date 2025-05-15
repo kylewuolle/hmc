@@ -30,15 +30,14 @@ type IPAMAdapter interface {
 }
 
 type IPAMConfig struct {
-	ClusterDeployment *kcm.ClusterDeployment
-	ClusterIPAMClaim  *kcm.ClusterIPAMClaim
+	ClusterIPAMClaim *kcm.ClusterIPAMClaim
 }
 
 func Builder(name string) (IPAMAdapter, error) {
 	switch name {
-	case IPAMInClusterAdapterName:
+	case kcm.InClusterProviderName:
 		return NewInClusterAdapter(), nil
-	case InfobloxAdapterName:
+	case kcm.InfobloxProviderName:
 		return NewInfobloxAdapter(), nil
 	default:
 		return nil, fmt.Errorf("unknown provider name '%s'", name)
