@@ -29,8 +29,10 @@ const (
 	// InvalidClaimConditionType Denotes that the claim is invalid
 	InvalidClaimConditionType = "InvalidClaimCondition"
 
+	// InClusterProviderName denotes the In-Cluster CAPI IPAM provider name
 	InClusterProviderName = "in-cluster"
-	InfobloxProviderName  = "ipam-infoblox"
+	// InfobloxProviderName denotes the Infoblox CAPI IPAM provider name
+	InfobloxProviderName = "ipam-infoblox"
 )
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
