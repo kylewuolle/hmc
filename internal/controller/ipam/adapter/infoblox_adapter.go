@@ -25,9 +25,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kcm "github.com/K0rdent/kcm/api/v1beta1"
-	"github.com/K0rdent/kcm/internal/utils"
 )
 
 const (
@@ -45,9 +45,6 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 		ObjectMeta: metav1.ObjectMeta{Name: config.ClusterIPAMClaim.Name, Namespace: config.ClusterIPAMClaim.Namespace},
 	}
 
-	config.ClusterIPAMClaim.Kind = kcm.ClusterIPAMClaimKind
-	config.ClusterIPAMClaim.APIVersion = kcm.GroupVersion.Version
-	utils.AddOwnerReference(&pool, config.ClusterIPAMClaim)
 	_, err := ctrl.CreateOrUpdate(ctx, c, &pool, func() error {
 		pool.Spec = infobloxv1alpha1.InfobloxIPPoolSpec{
 			Subnets: []infobloxv1alpha1.Subnet{
@@ -56,7 +53,7 @@ func (InfobloxAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cli
 				},
 			},
 		}
-		return nil
+		return controllerutil.SetOwnerReference(config.ClusterIPAMClaim, &pool, c.Scheme())
 	})
 	if err != nil {
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to create or update ip pool resource: %w", err)

@@ -26,7 +26,7 @@ import (
 	kcm "github.com/K0rdent/kcm/api/v1beta1"
 )
 
-var _ = Describe("ClusterIPAMClaim Controller", func() {
+var _ = Describe("ClusterIPAM Controller", func() {
 	createIPAMClaim := func(resourceName, namespace string) kcm.ClusterIPAMClaim {
 		By("Creating a new ClusterIPAMClaim resource")
 		ipPoolSpec := kcm.AddressSpaceSpec{}
