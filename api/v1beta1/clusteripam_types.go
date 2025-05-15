@@ -38,8 +38,11 @@ type ClusterIPAMStatus struct {
 	// Phase is the current phase of the ClusterIPAM.
 	Phase ClusterIPAMPhase `json:"phase,omitempty"`
 
-	// ProviderData is the provider specific data produced for the ClusterIPAM
-	ProviderData ClusterIPAMProviderData `json:"providerData,omitempty"`
+	// ProviderData is the provider specific data produced for the ClusterIPAM.
+	// This field is represented as a list, because it will store multiple entries
+	// for different networks - nodes, cluster (pods, services), external - for
+	// the same provider.
+	ProviderData []ClusterIPAMProviderData `json:"providerData,omitempty"`
 }
 
 type ClusterIPAMProviderData struct {

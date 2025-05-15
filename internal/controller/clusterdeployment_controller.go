@@ -1174,7 +1174,9 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 	if needsUpdate {
 		if err := cd.AddHelmValues(func(values map[string]any) error {
 			values["ipamEnabled"] = true
-			values[clusterIpam.Status.ProviderData.Name] = clusterIpam.Status.ProviderData
+			for _, v := range clusterIpam.Status.ProviderData {
+				values[v.Name] = v
+			}
 			return nil
 		}); err != nil {
 			return fmt.Errorf("failed to add IPAM Helm values: %w", err)
@@ -1188,28 +1190,36 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 	return nil
 }
 
-func configNeedsUpdate(config *apiextensionsv1.JSON, providerData kcm.ClusterIPAMProviderData) (bool, error) {
-	// Initialize currentValues map
-	currentValues := make(map[string]any)
+func configNeedsUpdate(config *apiextensionsv1.JSON, providerData []kcm.ClusterIPAMProviderData) (bool, error) {
+	// Check if values are already present in the config
+	valuesNeedUpdate := false
 
-	// Unmarshal config if it exists
+	// Convert cd.Spec.Config to a map for checking
+	var currentValues map[string]any
 	if config != nil {
 		if err := json.Unmarshal(config.Raw, &currentValues); err != nil {
 			return false, fmt.Errorf("failed to unmarshal current config values: %w", err)
 		}
+	} else {
+		currentValues = make(map[string]any)
 	}
 
-	// Check if ipamEnabled is explicitly set to true
-	if enabled, ok := currentValues["ipamEnabled"].(bool); !ok || !enabled {
-		return true, nil
+	// Check if ipamEnabled is already set correctly
+	ipamEnabled, ipamEnabledExists := currentValues["ipamEnabled"].(bool)
+	if !ipamEnabledExists || !ipamEnabled {
+		valuesNeedUpdate = true
 	}
 
-	// Check if provider-specific value is present
-	if _, ok := currentValues[providerData.Name]; !ok {
-		return true, nil
+	// Check if all provider data values are present
+	if !valuesNeedUpdate {
+		for _, v := range providerData {
+			if _, exists := currentValues[v.Name]; !exists {
+				valuesNeedUpdate = true
+				break
+			}
+		}
 	}
-
-	return false, nil
+	return valuesNeedUpdate, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

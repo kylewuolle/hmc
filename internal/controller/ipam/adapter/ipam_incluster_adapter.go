@@ -45,7 +45,7 @@ func NewInClusterAdapter() *InClusterAdapter {
 func (InClusterAdapter) BindAddress(ctx context.Context, config IPAMConfig, c client.Client) (kcm.ClusterIPAMProviderData, error) {
 	ipAddresses := config.ClusterIPAMClaim.Spec.ClusterNetwork.IPAddresses
 	if len(ipAddresses) == 0 {
-		ipAddresses = []string{config.ClusterIPAMClaim.Spec.ClusterNetwork.CIDR}
+		ipAddresses = []string{config.ClusterIPAMClaim.Spec.NodeNetwork.CIDR}
 	}
 
 	pool := inclusteripamv1alpha2.InClusterIPPool{
