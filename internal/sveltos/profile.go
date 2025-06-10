@@ -242,7 +242,7 @@ func helmChartFromSpecOrRef(
 }
 
 func generateRegistryCredentialsConfig(namespace string, repo *sourcev1.HelmRepository) *sveltosv1beta1.RegistryCredentialsConfig {
-	if repo == nil || (!repo.Spec.Insecure && repo.Spec.SecretRef == nil) {
+	if repo == nil || (!repo.Spec.Insecure && (repo.Spec.CertSecretRef == nil && repo.Spec.SecretRef == nil)) {
 		return nil
 	}
 
@@ -263,6 +263,13 @@ func generateRegistryCredentialsConfig(namespace string, repo *sourcev1.HelmRepo
 	if repo.Spec.SecretRef != nil {
 		c.CredentialsSecretRef = &corev1.SecretReference{
 			Name:      repo.Spec.SecretRef.Name,
+			Namespace: namespace,
+		}
+	}
+
+	if repo.Spec.CertSecretRef != nil {
+		c.CASecretRef = &corev1.SecretReference{
+			Name:      repo.Spec.CertSecretRef.Name,
 			Namespace: namespace,
 		}
 	}
