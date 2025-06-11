@@ -202,7 +202,6 @@ lint-chart-%:
 
 ##@ Build
 
-LD_FLAGS?= -s -w
 LD_FLAGS += -X github.com/K0rdent/kcm/internal/build.Version=$(VERSION)
 LD_FLAGS += -X github.com/K0rdent/kcm/internal/build.Commit=$(shell git rev-parse --verify HEAD)
 LD_FLAGS += -X github.com/K0rdent/kcm/internal/build.Name="kcm"

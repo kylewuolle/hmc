@@ -17,8 +17,9 @@ spec:
             networkName: {{ .Values.worker.network }}
           {{- if .Values.ipamEnabled  }}
             addressesFromPools:
-             - {{- toYaml .Values.ipPool.data | nindent 14 }}
+             - {{- toYaml .Values.ipPool.config | nindent 14 }}
           {{- end }}
+            nameservers: {{ .Values.nameservers }}
       numCPUs: {{ .Values.worker.cpus }}
       os: Linux
       powerOffMode: hard
