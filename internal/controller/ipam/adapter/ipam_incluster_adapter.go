@@ -60,7 +60,7 @@ func (InClusterAdapter) BindAddress(ctx context.Context, config IPAMConfig, c cl
 		return kcm.ClusterIPAMProviderData{}, fmt.Errorf("failed to create or update ip pool resource: %w", err)
 	}
 
-	poolAPIGroup := inclusteripamv1alpha2.GroupVersion.String()
+	poolAPIGroup := inclusteripamv1alpha2.GroupVersion.Group
 	poolRef := corev1.TypedLocalObjectReference{
 		APIGroup: &poolAPIGroup,
 		Kind:     InClusterIPPoolKind,
