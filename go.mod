@@ -5,7 +5,7 @@ go 1.24.1
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/a8m/envsubst v1.4.3
-	github.com/cert-manager/cert-manager v1.17.2
+	github.com/cert-manager/cert-manager v1.18.0
 	github.com/fluxcd/helm-controller/api v1.3.0
 	github.com/fluxcd/pkg/apis/meta v1.12.0
 	github.com/fluxcd/pkg/runtime v0.60.0
@@ -34,7 +34,7 @@ require (
 	k8s.io/client-go v0.33.1
 	k8s.io/kubectl v0.33.1
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
-	kubevirt.io/api v1.5.1
+	kubevirt.io/api v1.5.2
 	kubevirt.io/containerized-data-importer-api v1.62.0
 	sigs.k8s.io/cluster-api v1.10.2
 	sigs.k8s.io/cluster-api-ipam-provider-in-cluster v1.0.2
