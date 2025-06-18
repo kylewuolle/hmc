@@ -280,7 +280,9 @@ func helmChartFromSpecOrRef(
 	return helmChart, nil
 }
 
-func generateRegistryCredentialsConfig(namespace string, insecure bool, secretRef *fluxcdmeta.LocalObjectReference, certSecretRef *fluxcdmeta.LocalObjectReference) *sveltosv1beta1.RegistryCredentialsConfig {
+func generateRegistryCredentialsConfig(namespace string, insecure bool, secretRef *fluxcdmeta.LocalObjectReference,
+	certSecretRef *fluxcdmeta.LocalObjectReference,
+) *sveltosv1beta1.RegistryCredentialsConfig {
 	c := new(sveltosv1beta1.RegistryCredentialsConfig)
 
 	// The reason it is passed to PlainHTTP instead of InsecureSkipTLSVerify is because
