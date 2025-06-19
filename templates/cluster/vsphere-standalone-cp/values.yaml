@@ -4,9 +4,6 @@ workersNumber: 2
 
 ipamEnabled: false
 
-ipPool:
-  config: {}
-  
 clusterNetwork:
   pods:
     cidrBlocks:
