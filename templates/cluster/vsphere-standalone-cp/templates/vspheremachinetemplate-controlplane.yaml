@@ -19,7 +19,9 @@ spec:
           addressesFromPools:
             - {{- toYaml .Values.ipPool.config | nindent 14 }}
           {{- end }}
-          nameservers: {{ .Values.nameservers }}
+          {{- with .Values.nameservers }}
+          nameservers: {{ . }}
+          {{- end }}
       numCPUs: {{ .Values.controlPlane.cpus }}
       os: Linux
       powerOffMode: hard
