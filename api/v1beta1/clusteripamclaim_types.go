@@ -33,11 +33,14 @@ const (
 	InClusterProviderName = "in-cluster"
 	// InfobloxProviderName denotes the Infoblox CAPI IPAM provider name
 	InfobloxProviderName = "ipam-infoblox"
+
+	// AWSProviderName denotes the AWS IPAM provider name
+	AWSProviderName = "ipam-aws"
 )
 
 // ClusterIPAMClaimSpec defines the desired state of ClusterIPAMClaim
 type ClusterIPAMClaimSpec struct {
-	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox
+	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox;ipam-aws
 
 	// Provider is the name of the provider that this claim will be consumed by
 	Provider string `json:"provider"`

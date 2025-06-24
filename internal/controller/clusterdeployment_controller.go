@@ -1181,6 +1181,8 @@ func (r *ClusterDeploymentReconciler) processClusterIPAM(ctx context.Context, cd
 		claimName := cd.Name + "-ipam"
 		clusterIpamClaim.Name = claimName
 		clusterIpamClaim.Namespace = cd.Namespace
+		clusterIpamClaim.Spec.Cluster = cd.Name
+		cd.Spec.IPAMClaim.ClusterIPAMClaimSpec.Cluster = cd.Name
 		utils.AddOwnerReference(&clusterIpamClaim, cd)
 		_, err := ctrl.CreateOrUpdate(ctx, r.Client, &clusterIpamClaim, func() error {
 			clusterIpamClaim.Spec = *cd.Spec.IPAMClaim.ClusterIPAMClaimSpec

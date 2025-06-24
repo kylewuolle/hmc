@@ -21,7 +21,7 @@ import (
 
 // ClusterIPAMSpec defines the desired state of ClusterIPAM
 type ClusterIPAMSpec struct {
-	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox
+	// +kubebuilder:validation:Enum=in-cluster;ipam-infoblox;ipam-aws
 
 	// The provider that this claim will be consumed by
 	Provider string `json:"provider,omitempty"`

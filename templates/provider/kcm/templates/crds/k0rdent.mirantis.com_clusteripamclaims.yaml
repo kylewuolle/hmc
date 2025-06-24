@@ -125,6 +125,7 @@ spec:
                 enum:
                 - in-cluster
                 - ipam-infoblox
+                - ipam-aws
                 type: string
             required:
             - provider

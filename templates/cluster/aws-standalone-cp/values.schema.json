@@ -167,6 +167,19 @@
       "type": "integer",
       "minimum": 1
     },
+    "ipPool": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "properties": {
+            "networkInterfaces": {
+              "type": "array"
+            }
+          }
+        }
+      }
+    },
     "k0s": {
       "description": "K0s parameters",
       "type": "object",

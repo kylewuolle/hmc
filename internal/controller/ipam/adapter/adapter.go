@@ -37,8 +37,13 @@ func Builder(name string) (IPAMAdapter, error) {
 	switch name {
 	case kcmv1.InClusterProviderName:
 		return NewInClusterAdapter(), nil
+
 	case kcmv1.InfobloxProviderName:
 		return NewInfobloxAdapter(), nil
+
+	case kcmv1.AWSProviderName:
+		return NewAWSAdapter(), nil
+
 	default:
 		return nil, fmt.Errorf("unknown provider name '%s'", name)
 	}

@@ -14,6 +14,21 @@ spec:
   controlPlaneLoadBalancer:
     healthCheckProtocol: TCP
   network:
+    vpc:
+      id: vpc-055f9b6887200e89d
+    subnets:
+      - id: subnet-03a992d2e3079e98b
+        availabilityZone: us-west-1c
+        isPublic: true
+      - id: subnet-0084498af17c05d93
+        availabilityZone: us-west-1c
+        isPublic: false
+      - id: subnet-07d7117f5fa03fb8e
+        availabilityZone: us-west-1b
+        isPublic: true
+      - id: subnet-04aa20824fd313eb3
+        availabilityZone: us-west-1b
+        isPublic: false
     additionalControlPlaneIngressRules:
       - description: "k0s controller join API"
         protocol: tcp

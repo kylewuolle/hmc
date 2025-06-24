@@ -1,29 +1,68 @@
+{{- $count := 3 }}
+{{- range $i := until (.Values.workersNumber | int) }}
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
-  name: {{ include "machinedeployment.name" . }}
+  name: {{ include "machinedeployment.name" $ }}-{{ $i }}
   annotations:
     # Temporary fix to address https://github.com/k0sproject/k0smotron/issues/911
     machineset.cluster.x-k8s.io/skip-preflight-checks: "ControlPlaneIsStable"
 spec:
-  clusterName: {{ include "cluster.name" . }}
-  replicas: {{ .Values.workersNumber }}
+  clusterName: {{ include "cluster.name" $ }}
+  replicas: 1
   selector:
     matchLabels:
-      cluster.x-k8s.io/cluster-name: {{ include "cluster.name" . }}
+      cluster.x-k8s.io/cluster-name: {{ include "cluster.name" $ }}
   template:
     metadata:
       labels:
-        cluster.x-k8s.io/cluster-name: {{ include "cluster.name" . }}
+        cluster.x-k8s.io/cluster-name: {{ include "cluster.name" $ }}
     spec:
-      version: {{ regexReplaceAll "\\+k0s.+$" .Values.k0s.version "" }}
-      clusterName: {{ include "cluster.name" . }}
+      version: {{ regexReplaceAll "\\+k0s.+$" $.Values.k0s.version "" }}
+      clusterName: {{ include "cluster.name" $ }}
       bootstrap:
         configRef:
           apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
           kind: K0sWorkerConfigTemplate
-          name: {{ include "k0sworkerconfigtemplate.name" . }}
+          name: {{ include "k0sworkerconfigtemplate.name" $ }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
         kind: AWSMachineTemplate
-        name: {{ include "awsmachinetemplate.worker.name" . }}
+        name: {{ include "awsmachinetemplate.worker.name" $ }}-{{ $i }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: AWSMachineTemplate
+metadata:
+  name: {{ include "awsmachinetemplate.worker.name" $ }}-{{ $i }}
+spec:
+  template:
+    spec:
+      {{- if not (quote $.Values.worker.amiID | empty) }}
+      ami:
+        id: {{ $.Values.worker.amiID }}
+      {{- end }}
+      imageLookupFormat: {{ $.Values.worker.imageLookup.format }}
+      imageLookupOrg: "{{ $.Values.worker.imageLookup.org }}"
+      imageLookupBaseOS: {{ $.Values.worker.imageLookup.baseOS }}
+      instanceType: {{ $.Values.worker.instanceType }}
+      # Instance Profile created by `clusterawsadm bootstrap iam create-cloudformation-stack`
+      iamInstanceProfile: {{ $.Values.worker.iamInstanceProfile }}
+      cloudInit:
+        # Makes CAPA use k0s bootstrap cloud-init directly and not via SSM
+        # Simplifies the VPC setup as we do not need custom SSM endpoints etc.
+        insecureSkipSecretsManager: true
+      {{- if eq (len $.Values.ipPool.config.networkInterfaces) 0  }}
+      publicIP: {{ $.Values.publicIP }}
+      {{- end }}
+      rootVolume:
+        size: {{ $.Values.worker.rootVolumeSize }}
+      uncompressedUserData: {{ $.Values.worker.uncompressedUserData }}
+      {{- if gt (len $.Values.ipPool.config.networkInterfaces) 0  }}
+      {{- with (index $.Values.ipPool.config.networkInterfaces $i) }}
+      networkInterfaces: [{{ .networkInterfaceId }}]
+      #subnet:
+      #  id: {{ $.Values.ipPool.config.subnetId }}
+      {{- end }}
+      {{- end }}
+---
+{{- end }}
