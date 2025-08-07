@@ -2,10 +2,13 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: GCPMachineTemplate
 metadata:
   name: {{ include "gcpmachinetemplate.worker.name" . }}
+  annotations:
+    huge: "test"
 spec:
   template:
     spec:
       {{- with .Values.worker }}
+      ipAddress: "10.150.15.200"
       instanceType: {{ .instanceType }}
       subnet: {{ .subnet }}
       providerID: {{ .providerID }}
