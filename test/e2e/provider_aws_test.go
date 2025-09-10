@@ -25,6 +25,8 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
 	internalutils "github.com/K0rdent/kcm/internal/utils"
@@ -41,6 +43,14 @@ import (
 )
 
 var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Ordered, ContinueOnFailure, func() {
+	const (
+		helmRepositoryName            = "k0rdent-catalog"
+		serviceTemplateName           = "ingress-nginx-4-12-3"
+		multiClusterServiceTemplate   = "kyverno-3-4-4"
+		multiClusterServiceName       = "test-multicluster"
+		multiClusterServiceMatchLabel = "k0rdent.mirantis.com/test-cluster-name"
+	)
+
 	var (
 		kc                    *kubeclient.KubeClient
 		standaloneClusters    []string
@@ -49,26 +59,96 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 		kubeconfigDeleteFuncs []func() error
 
 		helmRepositorySpec = sourcev1.HelmRepositorySpec{
-			URL: "https://kubernetes.github.io/ingress-nginx",
+			Type: "oci",
+			URL:  "oci://ghcr.io/k0rdent/catalog/charts",
 		}
+
 		serviceTemplateSpec = kcmv1.ServiceTemplateSpec{
 			Helm: &kcmv1.HelmSpec{
 				ChartSpec: &sourcev1.HelmChartSpec{
 					Chart: "ingress-nginx",
 					SourceRef: sourcev1.LocalHelmChartSourceReference{
 						Kind: sourcev1.HelmRepositoryKind,
-						Name: "ingress-nginx",
+						Name: helmRepositoryName,
 					},
-					Version: "4.12.1",
+					Version: "4.12.3",
+				},
+			},
+		}
+
+		multiClusterServiceTemplateSpec = kcmv1.ServiceTemplateSpec{
+			Helm: &kcmv1.HelmSpec{
+				ChartSpec: &sourcev1.HelmChartSpec{
+					Chart: "kyverno",
+					SourceRef: sourcev1.LocalHelmChartSourceReference{
+						Kind: sourcev1.HelmRepositoryKind,
+						Name: helmRepositoryName,
+					},
+					Version: "3.4.4",
 				},
 			},
 		}
 	)
 
-	const (
-		helmRepositoryName  = "ingress-nginx"
-		serviceTemplateName = "ingress-nginx-4-12-1"
-	)
+	// buildMultiClusterService constructs a MultiClusterService spec for the given ClusterDeployment.
+	buildMultiClusterService := func(cd *kcmv1.ClusterDeployment, name string) *kcmv1.MultiClusterService {
+		return &kcmv1.MultiClusterService{
+			TypeMeta: metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: cd.Namespace,
+			},
+			Spec: kcmv1.MultiClusterServiceSpec{
+				ClusterSelector: metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						multiClusterServiceMatchLabel: cd.Name,
+					},
+				},
+				ServiceSpec: kcmv1.ServiceSpec{
+					Provider: kcmv1.StateManagementProviderConfig{},
+					Services: []kcmv1.Service{
+						{
+							Name:      multiClusterServiceTemplate,
+							Namespace: cd.Namespace,
+							Template:  multiClusterServiceTemplate,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	createMultiClusterService := func(ctx context.Context, cl crclient.Client, mc *kcmv1.MultiClusterService) {
+		Eventually(func() error {
+			err := crclient.IgnoreAlreadyExists(cl.Create(ctx, mc))
+			if err != nil {
+				logs.Println("failed to create MultiClusterService: " + err.Error())
+			}
+			return err
+		}, 1*time.Minute, 10*time.Second).Should(Succeed())
+	}
+
+	// validateMultiClusterService wraps the Eventually check for validation.
+	validateMultiClusterService := func(kc *kubeclient.KubeClient, name string, expectedCount int) {
+		Eventually(func() error {
+			err := clusterdeployment.ValidateMulticlusterService(context.Background(), kc, name, expectedCount)
+			if err != nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "[%s] validation error: %v\n", name, err)
+			}
+			return err
+		}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+	}
+
+	// removeClusterDeploymentLabel removes the given label.
+	removeClusterDeploymentLabel := func(ctx context.Context, cl crclient.Client, cd *kcmv1.ClusterDeployment, label, value string) {
+		toUpdate := kcmv1.ClusterDeployment{}
+		Expect(cl.Get(ctx, crclient.ObjectKeyFromObject(cd), &toUpdate)).NotTo(HaveOccurred())
+		if toUpdate.Labels == nil {
+			toUpdate.Labels = map[string]string{}
+		}
+		toUpdate.Labels[label] = value
+		clusterdeployment.Update(ctx, cl, &toUpdate)
+	}
 
 	BeforeAll(func() {
 		By("Ensuring that env vars are set correctly")
@@ -83,6 +163,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 		By("Creating HelmRepository and ServiceTemplate", func() {
 			flux.CreateHelmRepository(context.Background(), kc.CrClient, internalutils.DefaultSystemNamespace, helmRepositoryName, helmRepositorySpec)
 			templates.CreateServiceTemplate(context.Background(), kc.CrClient, internalutils.DefaultSystemNamespace, serviceTemplateName, serviceTemplateSpec)
+			templates.CreateServiceTemplate(context.Background(), kc.CrClient, internalutils.DefaultSystemNamespace, multiClusterServiceTemplate, multiClusterServiceTemplateSpec)
 		})
 	})
 
@@ -195,6 +276,12 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
+
+			mcs := buildMultiClusterService(sd, multiClusterServiceName)
+			createMultiClusterService(context.Background(), kc.CrClient, mcs)
+			validateMultiClusterService(kc, multiClusterServiceName, 1)
+			removeClusterDeploymentLabel(context.Background(), kc.CrClient, sd, multiClusterServiceMatchLabel, "not-matched")
+			validateMultiClusterService(kc, multiClusterServiceName, 0)
 
 			if !testingConfig.Upgrade && testingConfig.Hosted == nil {
 				return

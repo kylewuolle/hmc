@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
+	"github.com/K0rdent/kcm/internal/utils/status"
 	"github.com/K0rdent/kcm/test/e2e/kubeclient"
 	"github.com/K0rdent/kcm/test/utils"
 )
@@ -57,6 +60,27 @@ func validateCluster(ctx context.Context, kc *kubeclient.KubeClient, clusterName
 	}
 
 	return utils.ValidateConditionsTrue(cluster)
+}
+
+func ValidateMulticlusterService(ctx context.Context, kc *kubeclient.KubeClient, multiclusterServiceName string, expectedCount int) error {
+	multiclusterService, err := kc.GetMultiClusterService(ctx, multiclusterServiceName)
+	if err != nil {
+		return err
+	}
+
+	conditions, err := status.ConditionsFromUnstructured(multiclusterService)
+	if err != nil {
+		return err
+	}
+	for _, c := range conditions {
+		_, _ = fmt.Fprintf(GinkgoWriter, "condition for multiclusterservice [%s] %v", multiclusterServiceName, c)
+		if c.Type == kcmv1.ClusterInReadyStateCondition {
+			if !strings.Contains(c.Message, fmt.Sprintf("%d/%d", expectedCount, expectedCount)) {
+				return fmt.Errorf("multicluster service is not ready : %s", c.Message)
+			}
+		}
+	}
+	return utils.ValidateConditionsTrue(multiclusterService)
 }
 
 func validateMachines(ctx context.Context, kc *kubeclient.KubeClient, clusterName string) error {
