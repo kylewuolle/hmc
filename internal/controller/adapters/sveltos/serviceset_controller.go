@@ -764,9 +764,15 @@ func helmChartFromSpecOrRef(
 	}
 
 	helmOptions := template.Spec.HelmOptions
-	err = mergo.Merge(&helmOptions, svc.HelmOptions, mergo.WithAppendSlice)
-	if err != nil {
-		return addoncontrollerv1beta1.HelmChart{}, err
+	if template.Spec.HelmOptions == nil {
+		helmOptions = &kcmv1.ServiceHelmOptions{}
+	}
+
+	if svc.HelmOptions != nil {
+		err = mergo.Merge(&helmOptions, svc.HelmOptions, mergo.WithAppendSlice)
+		if err != nil {
+			return addoncontrollerv1beta1.HelmChart{}, err
+		}
 	}
 
 	helmChart = addoncontrollerv1beta1.HelmChart{
@@ -785,7 +791,7 @@ func helmChartFromSpecOrRef(
 			return svc.Name
 		}(),
 		RegistryCredentialsConfig: registryCredentialsConfig,
-		Options:                   convertHelmOptions(helmOptions),
+		Options:                   convertHelmOptions(*helmOptions),
 	}
 	return helmChart, nil
 }
@@ -834,17 +840,24 @@ func helmChartFromFluxSource(
 	url := fmt.Sprintf("%s://%s/%s/%s", status.Kind, status.Namespace, status.Name, sanitizedPath)
 
 	helmOptions := template.Spec.HelmOptions
-	err := mergo.Merge(&helmOptions, svc.HelmOptions, mergo.WithAppendSlice)
-	if err != nil {
-		return addoncontrollerv1beta1.HelmChart{}, err
+	if template.Spec.HelmOptions == nil {
+		helmOptions = &kcmv1.ServiceHelmOptions{}
 	}
+
+	if svc.HelmOptions != nil {
+		err := mergo.Merge(&helmOptions, svc.HelmOptions, mergo.WithAppendSlice)
+		if err != nil {
+			return addoncontrollerv1beta1.HelmChart{}, err
+		}
+	}
+
 	helmChart = addoncontrollerv1beta1.HelmChart{
 		RepositoryURL:    url,
 		ReleaseName:      svc.Name,
 		ReleaseNamespace: svc.Namespace,
 		Values:           svc.Values,
 		ValuesFrom:       convertValuesFrom(svc.ValuesFrom, namespace),
-		Options:          convertHelmOptions(helmOptions),
+		Options:          convertHelmOptions(*helmOptions),
 	}
 
 	return helmChart, nil

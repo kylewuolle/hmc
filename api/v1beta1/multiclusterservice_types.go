@@ -81,7 +81,7 @@ type Service struct {
 	Values string `json:"values,omitempty"`
 
 	// HelmOptions are the options to be passed to the provider for helm installation or updates
-	HelmOptions ServiceHelmOptions `json:"helmOptions,omitempty"`
+	HelmOptions *ServiceHelmOptions `json:"helmOptions,omitempty"`
 
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
