@@ -25,7 +25,6 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
@@ -37,6 +36,7 @@ import (
 	"github.com/K0rdent/kcm/test/e2e/flux"
 	"github.com/K0rdent/kcm/test/e2e/kubeclient"
 	"github.com/K0rdent/kcm/test/e2e/logs"
+	"github.com/K0rdent/kcm/test/e2e/multiclusterservice"
 	"github.com/K0rdent/kcm/test/e2e/templates"
 	"github.com/K0rdent/kcm/test/e2e/upgrade"
 	"github.com/K0rdent/kcm/test/utils"
@@ -90,57 +90,8 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 		}
 	)
 
-	// buildMultiClusterService constructs a MultiClusterService spec for the given ClusterDeployment.
-	buildMultiClusterService := func(cd *kcmv1.ClusterDeployment, name string) *kcmv1.MultiClusterService {
-		return &kcmv1.MultiClusterService{
-			TypeMeta: metav1.TypeMeta{},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: cd.Namespace,
-			},
-			Spec: kcmv1.MultiClusterServiceSpec{
-				ClusterSelector: metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						multiClusterServiceMatchLabel: cd.Name,
-					},
-				},
-				ServiceSpec: kcmv1.ServiceSpec{
-					Provider: kcmv1.StateManagementProviderConfig{},
-					Services: []kcmv1.Service{
-						{
-							Name:      multiClusterServiceTemplate,
-							Namespace: cd.Namespace,
-							Template:  multiClusterServiceTemplate,
-						},
-					},
-				},
-			},
-		}
-	}
-
-	createMultiClusterService := func(ctx context.Context, cl crclient.Client, mc *kcmv1.MultiClusterService) {
-		Eventually(func() error {
-			err := crclient.IgnoreAlreadyExists(cl.Create(ctx, mc))
-			if err != nil {
-				logs.Println("failed to create MultiClusterService: " + err.Error())
-			}
-			return err
-		}, 1*time.Minute, 10*time.Second).Should(Succeed())
-	}
-
-	// validateMultiClusterService wraps the Eventually check for validation.
-	validateMultiClusterService := func(kc *kubeclient.KubeClient, name string, expectedCount int) {
-		Eventually(func() error {
-			err := clusterdeployment.ValidateMulticlusterService(context.Background(), kc, name, expectedCount)
-			if err != nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "[%s] validation error: %v\n", name, err)
-			}
-			return err
-		}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
-	}
-
-	// removeClusterDeploymentLabel removes the given label.
-	removeClusterDeploymentLabel := func(ctx context.Context, cl crclient.Client, cd *kcmv1.ClusterDeployment, label, value string) {
+	// updateClusterDeploymentLabel sets the given label value on the given ClusterDeployment.
+	updateClusterDeploymentLabel := func(ctx context.Context, cl crclient.Client, cd *kcmv1.ClusterDeployment, label, value string) {
 		toUpdate := kcmv1.ClusterDeployment{}
 		Expect(cl.Get(ctx, crclient.ObjectKeyFromObject(cd), &toUpdate)).NotTo(HaveOccurred())
 		if toUpdate.Labels == nil {
@@ -277,11 +228,11 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 				}
 			}
 
-			mcs := buildMultiClusterService(sd, multiClusterServiceName)
-			createMultiClusterService(context.Background(), kc.CrClient, mcs)
-			validateMultiClusterService(kc, multiClusterServiceName, 1)
-			removeClusterDeploymentLabel(context.Background(), kc.CrClient, sd, multiClusterServiceMatchLabel, "not-matched")
-			validateMultiClusterService(kc, multiClusterServiceName, 0)
+			mcs := multiclusterservice.BuildMultiClusterService(sd, multiClusterServiceTemplate, multiClusterServiceMatchLabel, multiClusterServiceName)
+			multiclusterservice.CreateMultiClusterService(context.Background(), kc.CrClient, mcs)
+			multiclusterservice.ValidateMultiClusterService(kc, multiClusterServiceName, 1)
+			updateClusterDeploymentLabel(context.Background(), kc.CrClient, sd, multiClusterServiceMatchLabel, "not-matched")
+			multiclusterservice.ValidateMultiClusterService(kc, multiClusterServiceName, 0)
 
 			if !testingConfig.Upgrade && testingConfig.Hosted == nil {
 				return
