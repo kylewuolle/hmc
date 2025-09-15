@@ -82,7 +82,6 @@ func checkMultiClusterServiceConditions(ctx context.Context, kc *kubeclient.Kube
 	}
 	objKind, objName := status.ObjKindName(multiclusterService)
 	for _, c := range conditions {
-		_, _ = fmt.Fprintf(GinkgoWriter, "condition for multiclusterservice [%s] %v", multiclusterServiceName, c)
 		if c.Type == kcmv1.ClusterInReadyStateCondition {
 			if !strings.Contains(c.Message, fmt.Sprintf("%d/%d", expectedCount, expectedCount)) {
 				return fmt.Errorf("%s %s is not ready with conditions:\n%s", objKind, objName, utils.ConvertConditionsToString(c))
