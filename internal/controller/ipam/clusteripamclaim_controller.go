@@ -87,13 +87,15 @@ func (r *ClusterIPAMClaimReconciler) createOrUpdateClusterIPAM(ctx context.Conte
 		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
-	_, err := ctrl.CreateOrUpdate(ctx, r.Client, &clusterIPAM, func() error {
+	result, err := ctrl.CreateOrUpdate(ctx, r.Client, &clusterIPAM, func() error {
 		clusterIPAM.Spec = clusterIPAMSpec
 		return nil
 	})
 
-	if err := telemetry.TrackClusterIPAMCreate(clusterIPAM.UID, clusterIPAMClaim.Spec.Cluster, clusterIPAMClaim.Spec.Provider); err != nil {
-		l.Error(err, "Failed to track ClusterIPAM creation")
+	if result == controllerutil.OperationResultCreated {
+		if err := telemetry.TrackClusterIPAMCreate(string(clusterIPAM.UID), clusterIPAMClaim.Spec.Cluster, clusterIPAMClaim.Spec.Provider); err != nil {
+			l.Error(err, "Failed to track ClusterIPAM creation")
+		}
 	}
 
 	metrics.TrackMetricIPAMUsage(ctx, kcmv1.ClusterIPAMKind, clusterIPAM.Name, clusterIPAM.Namespace, true)

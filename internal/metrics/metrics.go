@@ -78,8 +78,11 @@ func setGaugeAndLog(ctx context.Context, gauge *prometheus.GaugeVec, labels prom
 		value = 1
 	}
 	gauge.With(labels).Set(value)
+	l := ctrl.LoggerFrom(ctx)
 
-	ctrl.LoggerFrom(ctx).V(1).Info(logMsg, append(labelMapToSlice(labels), "value", value)...)
+	if l.V(1).Enabled() {
+		l.V(1).Info(logMsg, append(labelMapToSlice(labels), "value", value)...)
+	}
 }
 
 func labelMapToSlice(labels prometheus.Labels) []any {

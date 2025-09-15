@@ -32,8 +32,8 @@ const (
 	// InvalidClaimConditionType Denotes that the claim is invalid
 	InvalidClaimConditionType = "InvalidClaimCondition"
 
-	// IPAMProviderConditionType Denotes the status of the IPAM provider
-	IPAMProviderConditionType = "IPAMProviderConditionType"
+	// IPAMProviderConditionError Denotes the status of the IPAM provider
+	IPAMProviderConditionError = "IPAMProviderConditionError"
 
 	// InClusterProviderName denotes the In-Cluster CAPI IPAM provider name
 	InClusterProviderName = "in-cluster"

@@ -16,7 +16,6 @@ package telemetry
 
 import (
 	"github.com/segmentio/analytics-go/v3"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func trackEvent(anonymousID, event string, properties map[string]any) error {
@@ -39,8 +38,8 @@ func TrackClusterDeploymentCreate(id, clusterDeploymentID, template string, dryR
 	})
 }
 
-func TrackClusterIPAMCreate(clusterIPAMId types.UID, cluster, ipamProvider string) error {
-	return trackEvent(string(clusterIPAMId), "cluster-ipam-create", map[string]any{
+func TrackClusterIPAMCreate(clusterIPAMId, cluster, ipamProvider string) error {
+	return trackEvent(clusterIPAMId, "cluster-ipam-create", map[string]any{
 		"cluster":      cluster,
 		"ipamProvider": ipamProvider,
 	})

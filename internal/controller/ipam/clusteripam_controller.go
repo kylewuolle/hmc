@@ -62,7 +62,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err != nil {
 		apimeta.SetStatusCondition(&clusterIPAMClaim.Status.Conditions,
 			metav1.Condition{
-				Type:               kcmv1.IPAMProviderConditionType,
+				Type:               kcmv1.IPAMProviderConditionError,
 				Status:             metav1.ConditionUnknown,
 				Reason:             kcmv1.FailedReason,
 				Message:            fmt.Sprintf("ClusterIPAMClaim provider processing failed: %v", err),
@@ -72,7 +72,7 @@ func (r *ClusterIPAMReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, fmt.Errorf("failed to create provider specific data for ClusterIPAM %s/%s: %w", clusterIPAM.Namespace, clusterIPAM.Name, err)
 	}
 
-	apimeta.RemoveStatusCondition(&clusterIPAMClaim.Status.Conditions, kcmv1.IPAMProviderConditionType)
+	apimeta.RemoveStatusCondition(&clusterIPAMClaim.Status.Conditions, kcmv1.IPAMProviderConditionError)
 	clusterIPAM.Status.Phase = kcmv1.ClusterIPAMPhasePending
 	if adapterData.Ready {
 		clusterIPAM.Status.Phase = kcmv1.ClusterIPAMPhaseBound
