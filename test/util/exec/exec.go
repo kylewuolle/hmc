@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+<<<<<<<< HEAD:test/util/exec/exec.go
 package exec
+========
+package validation
+>>>>>>>> 4ee7630d (feat: upgrade cluster-api@v1.11.1):test/util/validation/validation.go
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
 	"strings"
 
+<<<<<<<< HEAD:test/util/exec/exec.go
 	. "github.com/onsi/ginkgo/v2"
 )
 
@@ -75,4 +76,56 @@ func GetProjectDir() (string, error) {
 	}
 	wd = strings.ReplaceAll(wd, "/test/e2e", "")
 	return wd, nil
+========
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	statusutil "github.com/K0rdent/kcm/internal/util/status"
+)
+
+// ValidateConditionsTrue iterates over the conditions of the given
+// unstructured object and returns an error if any of the conditions are not
+// true.  Conditions are expected to be of type metav1.Condition.
+func ValidateConditionsTrue(unstrObj *unstructured.Unstructured) error {
+	objKind, objName := statusutil.ObjKindName(unstrObj)
+
+	conditions, err := statusutil.ConditionsFromUnstructured(unstrObj)
+	if err != nil {
+		return fmt.Errorf("failed to get conditions from unstructured object: %w", err)
+	}
+
+	var errs error
+
+	for _, c := range conditions {
+		if c.Status == metav1.ConditionTrue {
+			continue
+		}
+
+		errs = errors.Join(errors.New(ConvertConditionsToString(c)), errs)
+	}
+
+	if errs != nil {
+		return fmt.Errorf("%s %s is not ready with conditions:\n%w", objKind, objName, errs)
+	}
+
+	return nil
+}
+
+func ConvertConditionsToString(condition metav1.Condition) string {
+	return fmt.Sprintf("Type: %s, Status: %s, Reason: %s, Message: %s",
+		condition.Type, condition.Status, condition.Reason, condition.Message)
+}
+
+// ValidateObjectNamePrefix checks if the given object name has the given prefix.
+func ValidateObjectNamePrefix(obj *unstructured.Unstructured, prefix string) error {
+	objKind, objName := statusutil.ObjKindName(obj)
+
+	// Verify the machines are prefixed with the cluster name and fail
+	// the test if they are not.
+	if !strings.HasPrefix(objName, prefix) {
+		return fmt.Errorf("object %s %s does not have prefix: %s", objKind, objName, prefix)
+	}
+
+	return nil
+>>>>>>>> 4ee7630d (feat: upgrade cluster-api@v1.11.1):test/util/validation/validation.go
 }
