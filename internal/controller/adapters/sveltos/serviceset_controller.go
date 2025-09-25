@@ -730,6 +730,13 @@ func collectServiceStatusesFromProfileOrClusterProfile(ctx context.Context, rgnC
 		return err
 	}
 
+	// if the clustersummary profile spec does not match our profile spec then the reconciliation hasn't happened yet
+	// TODO figure out what to do here
+
+	if !equality.Semantic.DeepEqual(summary.Spec.ClusterProfileSpec, profile.Spec) {
+		l.V(1).Info("ClusterSummary status is not up to date. Not updating status.", "summary", summary)
+		return nil
+	}
 	l.V(1).Info("Found matching ClusterSummary", "summary", client.ObjectKeyFromObject(summary))
 	serviceSet.Status.Services = servicesStateFromSummary(l, summary, serviceSet)
 	serviceSet.Status.Deployed = !slices.ContainsFunc(serviceSet.Status.Services, func(s kcmv1.ServiceState) bool {
