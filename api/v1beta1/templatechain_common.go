@@ -51,6 +51,9 @@ type SupportedTemplate struct {
 type AvailableUpgrade struct {
 	// Name is the name of the Template to which the upgrade is available.
 	Name string `json:"name"`
+
+	// Version is the version of the Template to which the upgrade is available.
+	Version string `json:"version"`
 }
 
 // IsValid checks if the [TemplateChainSpec] is valid, otherwise provides warning messages.
@@ -113,13 +116,15 @@ func (s *TemplateChainSpec) findAllUpgradePaths(templateName string) ([][]string
 
 		// Iterate through available upgrades and find subsequent available upgrades
 		for _, upgrade := range template.AvailableUpgrades {
-			upgradePath := make([]string, len(path)+1)
-			copy(upgradePath, path)
-			upgradePath[len(path)] = upgrade.Name
+			if !slices.Contains(path, upgrade.Name) {
+				upgradePath := make([]string, len(path)+1)
+				copy(upgradePath, path)
+				upgradePath[len(path)] = upgrade.Name
 
-			result = append(result, upgradePath)
+				result = append(result, upgradePath)
 
-			findPaths(upgrade.Name, upgradePath, visited)
+				findPaths(upgrade.Name, upgradePath, visited)
+			}
 		}
 	}
 
@@ -144,9 +149,9 @@ func (s *TemplateChainSpec) UpgradePaths(templateName string) ([]UpgradePath, er
 		// Use the last element as the key to ensure we have paths to all possible destinations
 		key := path[len(path)-1]
 
-		// If we haven't seen this destination or this path is shorter
+		// If we haven't seen this destination or this path is longer
 		existingPath, exists := uniquePaths[key]
-		if !exists || len(path) < len(existingPath) {
+		if !exists || len(path) > len(existingPath) {
 			uniquePaths[key] = path
 		}
 	}
