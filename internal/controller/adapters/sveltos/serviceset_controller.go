@@ -403,6 +403,26 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		return fmt.Errorf("failed to get Profile: %w", err)
 	}
 
+	annotations := profile.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	paused := false
+	if serviceSet.GetAnnotations() != nil {
+		_, paused = serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation]
+	}
+
+	_, pauseAnnotationExists := annotations[addoncontrollerv1beta1.ProfilePausedAnnotation]
+
+	if paused {
+		annotations[addoncontrollerv1beta1.ProfilePausedAnnotation] = "true"
+	} else if pauseAnnotationExists {
+		delete(annotations, addoncontrollerv1beta1.ProfilePausedAnnotation)
+	}
+
+	profile.SetAnnotations(annotations)
+
 	switch {
 	// we already excluded all errors except NotFound
 	// hence if the error is not nil, it means that the object was not found
@@ -419,7 +439,7 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		}
 	// if profile spec is not equal to the spec we just created,
 	// we need to update it
-	case !equality.Semantic.DeepEqual(profile.Spec, *spec):
+	case !equality.Semantic.DeepEqual(profile.Spec, *spec) || pauseAnnotationExists && !paused:
 		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
@@ -440,6 +460,26 @@ func (*ServiceSetReconciler) createOrUpdateClusterProfile(ctx context.Context, r
 	if client.IgnoreNotFound(err) != nil {
 		return fmt.Errorf("failed to get Profile: %w", err)
 	}
+
+	annotations := profile.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	paused := false
+	if serviceSet.GetAnnotations() != nil {
+		_, paused = serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation]
+	}
+
+	_, pauseAnnotationExists := annotations[addoncontrollerv1beta1.ProfilePausedAnnotation]
+
+	if paused {
+		annotations[addoncontrollerv1beta1.ProfilePausedAnnotation] = "true"
+	} else if pauseAnnotationExists {
+		delete(annotations, addoncontrollerv1beta1.ProfilePausedAnnotation)
+	}
+
+	profile.SetAnnotations(annotations)
 
 	switch {
 	// we already excluded all errors except NotFound
