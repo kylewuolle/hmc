@@ -75,10 +75,6 @@ spec:
                 description: Services is the list of services to deploy.
                 items:
                   properties:
-                    disable:
-                      description: Disable can be set to disable handling of this
-                        service.
-                      type: boolean
                     helmOptions:
                       description: HelmOptions are the options to be passed to the
                         provider for helm installation or updates

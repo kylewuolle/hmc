@@ -403,25 +403,7 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		return fmt.Errorf("failed to get Profile: %w", err)
 	}
 
-	annotations := profile.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-
-	paused := false
-	if serviceSet.GetAnnotations() != nil {
-		_, paused = serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation]
-	}
-
-	_, pauseAnnotationExists := annotations[addoncontrollerv1beta1.ProfilePausedAnnotation]
-
-	if paused {
-		annotations[addoncontrollerv1beta1.ProfilePausedAnnotation] = "true"
-	} else if pauseAnnotationExists {
-		delete(annotations, addoncontrollerv1beta1.ProfilePausedAnnotation)
-	}
-
-	profile.SetAnnotations(annotations)
+	externalPaused, internalPaused := handlePauseAnnotations(&profile.ObjectMeta, serviceSet)
 
 	switch {
 	// we already excluded all errors except NotFound
@@ -439,7 +421,7 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		}
 	// if profile spec is not equal to the spec we just created,
 	// we need to update it
-	case !equality.Semantic.DeepEqual(profile.Spec, *spec) || pauseAnnotationExists && !paused:
+	case externalPaused && !internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
 		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
@@ -461,25 +443,7 @@ func (*ServiceSetReconciler) createOrUpdateClusterProfile(ctx context.Context, r
 		return fmt.Errorf("failed to get Profile: %w", err)
 	}
 
-	annotations := profile.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-
-	paused := false
-	if serviceSet.GetAnnotations() != nil {
-		_, paused = serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation]
-	}
-
-	_, pauseAnnotationExists := annotations[addoncontrollerv1beta1.ProfilePausedAnnotation]
-
-	if paused {
-		annotations[addoncontrollerv1beta1.ProfilePausedAnnotation] = "true"
-	} else if pauseAnnotationExists {
-		delete(annotations, addoncontrollerv1beta1.ProfilePausedAnnotation)
-	}
-
-	profile.SetAnnotations(annotations)
+	externalPaused, internalPaused := handlePauseAnnotations(&profile.ObjectMeta, serviceSet)
 
 	switch {
 	// we already excluded all errors except NotFound
@@ -496,7 +460,7 @@ func (*ServiceSetReconciler) createOrUpdateClusterProfile(ctx context.Context, r
 		}
 	// if profile spec is not equal to the spec we just created,
 	// we need to update it
-	case !equality.Semantic.DeepEqual(profile.Spec, *spec):
+	case externalPaused && !internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
 		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
@@ -504,6 +468,26 @@ func (*ServiceSetReconciler) createOrUpdateClusterProfile(ctx context.Context, r
 		}
 	}
 	return nil
+}
+
+func handlePauseAnnotations(profile *metav1.ObjectMeta, serviceSet *kcmv1.ServiceSet) (externalPaused, internalPaused bool) {
+	profileAnnotations := profile.GetAnnotations()
+	if profileAnnotations == nil {
+		profileAnnotations = make(map[string]string)
+	}
+
+	internalPaused = serviceSet.GetAnnotations() != nil && serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation] != ""
+	externalPaused = profileAnnotations[addoncontrollerv1beta1.ProfilePausedAnnotation] != ""
+
+	switch {
+	case internalPaused:
+		profileAnnotations[addoncontrollerv1beta1.ProfilePausedAnnotation] = "true"
+	case externalPaused:
+		delete(profileAnnotations, addoncontrollerv1beta1.ProfilePausedAnnotation)
+	}
+
+	profile.SetAnnotations(profileAnnotations)
+	return externalPaused, internalPaused
 }
 
 func (r *ServiceSetReconciler) profileSpec(ctx context.Context, rgnClient client.Client, serviceSet *kcmv1.ServiceSet) (*addoncontrollerv1beta1.Spec, error) {
