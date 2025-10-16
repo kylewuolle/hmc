@@ -95,6 +95,23 @@ var adoptedClusterDeploymentTemplateBytes []byte
 //go:embed resources/remote-cluster.yaml.tpl
 var remoteClusterDeploymentTemplateBytes []byte
 
+//go:embed resources/docker-standalone-cp.tpl
+var dockerClusterDeploymentTemplateBytes []byte
+
+func FilterAllProviders() []string {
+	return []string{
+		KCMControllerLabel,
+		GetProviderLabel(ProviderAWS),
+		GetProviderLabel(ProviderAzure),
+		GetProviderLabel(ProviderCAPI),
+		GetProviderLabel(ProviderVSphere),
+	}
+}
+
+func GetProviderLabel(provider ProviderType) string {
+	return fmt.Sprintf("%s=%s", clusterapiv1.ProviderNameLabel, provider)
+}
+
 func GenerateClusterName(postfix string) string {
 	mcPrefix := os.Getenv(EnvVarClusterDeploymentPrefix)
 	if mcPrefix == "" {
@@ -165,6 +182,8 @@ func Generate(templateType templates.Type, clusterName, template string) *kcmv1.
 		clusterDeploymentTemplateBytes = adoptedClusterDeploymentTemplateBytes
 	case templates.TemplateRemoteCluster:
 		clusterDeploymentTemplateBytes = remoteClusterDeploymentTemplateBytes
+	case templates.TemplateDockerCluster:
+		clusterDeploymentTemplateBytes = dockerClusterDeploymentTemplateBytes
 	default:
 		Fail(fmt.Sprintf("Unsupported template type: %s", templateType))
 	}
