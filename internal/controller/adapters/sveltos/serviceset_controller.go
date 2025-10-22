@@ -421,7 +421,7 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		}
 	// if profile spec is not equal to the spec we just created,
 	// we need to update it
-	case externalPaused && !internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
+	case externalPaused != internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
 		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
@@ -460,7 +460,7 @@ func (*ServiceSetReconciler) createOrUpdateClusterProfile(ctx context.Context, r
 		}
 	// if profile spec is not equal to the spec we just created,
 	// we need to update it
-	case externalPaused && !internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
+	case externalPaused != internalPaused || !equality.Semantic.DeepEqual(profile.Spec, *spec):
 		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
@@ -476,8 +476,8 @@ func handlePauseAnnotations(profile *metav1.ObjectMeta, serviceSet *kcmv1.Servic
 		profileAnnotations = make(map[string]string)
 	}
 
-	internalPaused = serviceSet.GetAnnotations() != nil && serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation] != ""
-	externalPaused = profileAnnotations[addoncontrollerv1beta1.ProfilePausedAnnotation] != ""
+	_, internalPaused = serviceSet.GetAnnotations()[kcmv1.ServiceSetPausedAnnotation]
+	_, externalPaused = profileAnnotations[addoncontrollerv1beta1.ProfilePausedAnnotation]
 
 	switch {
 	case internalPaused:
