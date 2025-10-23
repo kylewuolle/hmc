@@ -95,41 +95,6 @@ const (
 	ServiceSetOperationNone   ServiceSetOperation = "none"
 )
 
-/*
-// +kubebuilder:object:generate=false
-// +k8s:deepcopy-gen=false
-type VersionedService interface {
-	GetVersion() string
-	SetVersion(string) VersionedService
-	GetTemplate() string
-}
-
-func (s Service) GetVersion() string {
-	return s.Version
-}
-
-func (s Service) SetVersion(v string) VersionedService {
-	s.Version = v
-	return s
-}
-
-func (s Service) GetTemplate() string {
-	return s.Template
-}
-
-func (s ServiceWithValues) GetVersion() string {
-	return s.Version
-}
-
-func (s ServiceWithValues) SetVersion(v string) ServiceWithValues {
-	s.Version = v
-	return s
-}
-
-func (s ServiceWithValues) GetTemplate() string {
-	return s.Template
-}
-*/
 // ServiceSetSpec defines the desired state of ServiceSet
 type ServiceSetSpec struct {
 	// Cluster is the name of the ClusterDeployment
