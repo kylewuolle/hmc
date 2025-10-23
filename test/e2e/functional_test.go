@@ -327,13 +327,21 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 			Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(serviceSet), serviceSet)).
 				NotTo(HaveOccurred(), "failed to fetch ServiceSett")
 			Expect(serviceSet.Spec.Services).To(HaveLen(1))
-			Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(sd), sd)).
-				NotTo(HaveOccurred(), "failed to fetch ServiceDeployment")
 
-			newTemplate = fmt.Sprintf("%s-%s", chartName, strings.ReplaceAll(nginxVersions[0], ".", "-"))
-			sd.Spec.ServiceSpec.Services[0].Template = newTemplate
-			By(fmt.Sprintf("Downgrade service to:%s\n", newTemplate))
-			clusterdeployment.Update(ctx, kc.CrClient, sd)
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(sd), sd)).
+					NotTo(HaveOccurred(), "failed to fetch ServiceDeployment")
+
+				newTemplate = fmt.Sprintf("%s-%s", chartName, strings.ReplaceAll(nginxVersions[0], ".", "-"))
+				sd.Spec.ServiceSpec.Services[0].Template = newTemplate
+				By(fmt.Sprintf("Downgrade service to:%s\n", newTemplate))
+
+				err := kc.CrClient.Update(ctx, sd)
+				if err != nil {
+					logs.Println("failed to update ClusterDeployment: " + err.Error())
+				}
+				return err
+			}, 1*time.Minute, 10*time.Second).Should(Succeed())
 
 			expectedVersions = []string{
 				nginxVersions[0],
