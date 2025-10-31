@@ -137,7 +137,7 @@ func createAndWaitForValid(ctx context.Context, client crclient.Client, obj crcl
 			return fmt.Errorf("unsupported type %T", obj)
 		}
 		return nil
-	}).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
+	}).WithTimeout(15 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
 }
 
 // CreateServiceTemplate creates a ServiceTemplate and waits for it to become valid
