@@ -355,7 +355,7 @@ func ServicesToDeploy(
 		desiredVersion := desiredServiceVersions[key]
 		desiredTemplate := desiredServiceTemplates[key]
 		// if no upgrade paths defined, just deploy desired version
-		if len(upgradePaths) == 0 {
+		if len(upgradePaths) == 0 || desiredVersion == s.Version {
 			services = append(services, kcmv1.ServiceWithValues{
 				Name:        s.Name,
 				Namespace:   s.Namespace,
@@ -365,7 +365,6 @@ func ServicesToDeploy(
 				ValuesFrom:  s.ValuesFrom,
 				HelmOptions: s.HelmOptions,
 			})
-			return services
 		}
 
 		// process upgrade paths (assume ordered lowest → highest)
