@@ -613,7 +613,7 @@ func (r *MultiClusterServiceReconciler) createOrUpdateServiceSet(
 		return fmt.Errorf("failed to retrieve version information for service set services: %w", err)
 	}
 
-	resultingServices := serviceset.ServicesToDeploy(upgradePaths, filteredServices, serviceSetServices)
+	resultingServices := serviceset.ServicesToDeploy(upgradePaths, filteredServices, serviceSet)
 	l.V(1).Info("Services to deploy", "services", resultingServices)
 
 	serviceSet, err = serviceset.NewBuilder(cd, serviceSet, provider.Spec.Selector).

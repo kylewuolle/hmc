@@ -283,10 +283,8 @@ func FilterServiceDependencies(
 func ServicesToDeploy(
 	upgradePaths []kcmv1.ServiceUpgradePaths,
 	desiredServices []kcmv1.Service,
-	deployedServices []kcmv1.ServiceWithValues,
+	serviceSet *kcmv1.ServiceSet,
 ) []kcmv1.ServiceWithValues {
-	// todo: implement sequential version updates, taking into account observed services state
-
 	// to determine, whether service could be upgraded, we need to compute upgrade paths for
 	// desired state of services in [github.com/k0rdent/kcm/api/v1beta1.ClusterDeployment] or
 	// [github.com/k0rdent/kcm/api/v1beta1.MultiClusterService] and ensure that services can
@@ -295,7 +293,6 @@ func ServicesToDeploy(
 	desiredServiceVersions := make(map[client.ObjectKey]string)
 	desiredServiceTemplates := make(map[client.ObjectKey]string)
 	deployedServiceVersions := make(map[client.ObjectKey]string)
-	pendingOrUpgrading := make(map[client.ObjectKey]bool)
 	upgradeAvailable := make(map[client.ObjectKey]bool)
 
 	// Build desired services map
@@ -310,24 +307,29 @@ func ServicesToDeploy(
 	services := make([]kcmv1.ServiceWithValues, 0)
 
 	// we'll check whether deployed services could be upgraded to the desired version
-	for _, svc := range deployedServices {
+	for _, svc := range serviceSet.Spec.Services {
 		key := client.ObjectKey{Namespace: effectiveNamespace(svc.Namespace), Name: svc.Name}
 		desiredVersion := desiredServiceVersions[key]
-
 		// check upgrade availability
 		upgradeAvailable[key] = desiredVersion < svc.Version ||
 			desiredVersionInUpgradePaths(upgradePaths, svc, desiredVersion)
-		deployedServiceVersions[key] = svc.Version
+		for _, serviceState := range serviceSet.Status.Services {
+			if serviceState.State == kcmv1.ServiceStateDeployed &&
+				serviceState.Namespace == svc.Namespace && serviceState.Name == svc.Name {
+				deployedServiceVersions[key] = serviceState.Version
+			}
+		}
 
-		// add any services already marked as pending/upgrade
-		if (svc.Pending || svc.Upgrade) &&
-			!slices.ContainsFunc(services, func(c kcmv1.ServiceWithValues) bool {
-				return c.Name == svc.Name &&
-					c.Namespace == svc.Namespace &&
-					c.Version == svc.Version
-			}) {
-			pendingOrUpgrading[key] = true
+		if svc.Version != deployedServiceVersions[key] {
 			services = append(services, svc)
+
+			for i := 0; i < len(desiredServices); {
+				if desiredServices[i].Name == svc.Name {
+					desiredServices = slices.Delete(desiredServices, i, i+1)
+				} else {
+					i++
+				}
+			}
 		}
 	}
 
@@ -340,18 +342,13 @@ func ServicesToDeploy(
 			continue
 		}
 
-		// skip services that are already pending/upgrade
-		if pendingOrUpgrading[key] {
-			continue
-		}
-
 		// if upgrade is not available, keep the deployed version
 		if !upgradeAvailable[key] {
-			idx := slices.IndexFunc(deployedServices, func(svc kcmv1.ServiceWithValues) bool {
+			idx := slices.IndexFunc(serviceSet.Spec.Services, func(svc kcmv1.ServiceWithValues) bool {
 				return svc.Name == s.Name && effectiveNamespace(svc.Namespace) == key.Namespace
 			})
 			if idx >= 0 {
-				services = append(services, deployedServices[idx])
+				services = append(services, serviceSet.Spec.Services[idx])
 			}
 			continue
 		}
@@ -359,7 +356,7 @@ func ServicesToDeploy(
 		desiredVersion := desiredServiceVersions[key]
 		desiredTemplate := desiredServiceTemplates[key]
 		// if no upgrade paths defined, just deploy desired version
-		if len(upgradePaths) == 0 || desiredVersion == s.Version {
+		if len(upgradePaths) == 0 {
 			services = append(services, kcmv1.ServiceWithValues{
 				Name:        s.Name,
 				Namespace:   s.Namespace,
@@ -373,39 +370,56 @@ func ServicesToDeploy(
 
 		// process upgrade paths (assume ordered lowest → highest)
 		currentVersion := deployedServiceVersions[key]
+		minimumUpgrade := kcmv1.AvailableUpgrade{}
+
 		for _, path := range upgradePaths {
 			if path.Name != s.Name {
 				continue
 			}
 
-			pending := false
 			for _, upgrade := range path.AvailableUpgrades {
 				for _, availableUpgrade := range upgrade.Versions {
-					if availableUpgrade.Version > currentVersion && availableUpgrade.Version <= desiredVersion {
-						if !slices.ContainsFunc(services, func(c kcmv1.ServiceWithValues) bool {
-							return c.Name == s.Name &&
-								c.Namespace == s.Namespace &&
-								c.Version == availableUpgrade.Version
-						}) {
-							services = append(services, kcmv1.ServiceWithValues{
-								Name:        s.Name,
-								Namespace:   s.Namespace,
-								Version:     availableUpgrade.Version,
-								Template:    availableUpgrade.Name,
-								Values:      s.Values,
-								ValuesFrom:  s.ValuesFrom,
-								HelmOptions: s.HelmOptions,
-								Pending:     pending,
-								Upgrade:     !pending,
-							})
-							pending = true
+					// Check if it's in the valid upgrade range
+					if availableUpgrade.Version >= currentVersion &&
+						availableUpgrade.Version <= desiredVersion {
+						// If we haven't found any valid upgrade yet, set it
+						if minimumUpgrade.Version == "" {
+							minimumUpgrade = availableUpgrade
+							continue
+						}
+
+						// Otherwise, see if this one is smaller than the current minimum
+						if availableUpgrade.Version < minimumUpgrade.Version {
+							minimumUpgrade = availableUpgrade
 						}
 					}
 				}
 			}
 		}
-	}
 
+		if minimumUpgrade.Version == "" {
+			minimumUpgrade = kcmv1.AvailableUpgrade{
+				Name:    s.Template,
+				Version: desiredVersion,
+			}
+		}
+
+		if !slices.ContainsFunc(services, func(c kcmv1.ServiceWithValues) bool {
+			return c.Name == s.Name &&
+				c.Namespace == s.Namespace &&
+				c.Version == minimumUpgrade.Version
+		}) {
+			services = append(services, kcmv1.ServiceWithValues{
+				Name:        s.Name,
+				Namespace:   s.Namespace,
+				Version:     minimumUpgrade.Version,
+				Template:    minimumUpgrade.Name,
+				Values:      s.Values,
+				ValuesFrom:  s.ValuesFrom,
+				HelmOptions: s.HelmOptions,
+			})
+		}
+	}
 	return services
 }
 
@@ -507,6 +521,7 @@ func needsUpdate(
 			Values:      s.Values,
 			ValuesFrom:  s.ValuesFrom,
 			HelmOptions: s.HelmOptions,
+			Version:     s.Version,
 		}
 	}
 
@@ -521,6 +536,7 @@ func needsUpdate(
 			Values:      s.Values,
 			ValuesFrom:  s.ValuesFrom,
 			HelmOptions: s.HelmOptions,
+			Version:     s.Version,
 		}
 	}
 

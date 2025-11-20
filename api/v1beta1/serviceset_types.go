@@ -147,12 +147,6 @@ type ServiceWithValues struct {
 
 	// ValuesFrom is the list of sources of the values to pass to the ServiceTemplate.
 	ValuesFrom []ValuesFrom `json:"valuesFrom,omitempty"`
-
-	// When set to true it indicates the service is pending an upgrade
-	Pending bool `json:"pending,omitempty"`
-
-	// When set to true indicates the service is being upgraded
-	Upgrade bool `json:"upgrade,omitempty"`
 }
 
 // ValuesFrom is the source of the values to pass to the ServiceTemplate. The source

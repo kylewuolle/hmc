@@ -515,12 +515,9 @@ func waitForServiceSetVersions(
 		}
 		Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(serviceSet), serviceSet)).NotTo(HaveOccurred(), "failed to fetch ServiceSet")
 
-		for _, service := range serviceSet.Spec.Services {
-			if service.Upgrade {
-				return fmt.Errorf("service %s is upgrading", nginxServiceName)
-			}
-			if service.Pending {
-				return fmt.Errorf("service %s is pending", nginxServiceName)
+		for _, service := range serviceSet.Status.Services {
+			if service.State != kcmv1.ServiceStateDeployed {
+				return fmt.Errorf("service %s is in %s state", service.Name, service.State)
 			}
 		}
 		return nil
