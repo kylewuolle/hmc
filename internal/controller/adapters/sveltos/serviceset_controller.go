@@ -672,12 +672,10 @@ func getClusterSummaryForServiceSet(ctx context.Context, rgnClient client.Client
 		matchingRefs []corev1.ObjectReference
 		profileKind  string
 		profileName  string
-		profileSpec  addoncontrollerv1beta1.Spec
 	)
 
 	switch p := profileObj.(type) {
 	case *addoncontrollerv1beta1.Profile:
-		profileSpec = p.Spec
 		matchingRefs = p.Status.MatchingClusterRefs
 		profileKind = addoncontrollerv1beta1.ProfileKind
 		profileName = p.Name
@@ -686,7 +684,6 @@ func getClusterSummaryForServiceSet(ctx context.Context, rgnClient client.Client
 		matchingRefs = p.Status.MatchingClusterRefs
 		profileKind = addoncontrollerv1beta1.ClusterProfileKind
 		profileName = p.Name
-		profileSpec = p.Spec
 		l.V(1).Info("Processing ClusterProfile", "clusterProfile", client.ObjectKeyFromObject(p))
 	default:
 		return nil, fmt.Errorf("unsupported profile type: %T", profileObj)
@@ -731,13 +728,6 @@ func collectServiceStatusesFromProfileOrClusterProfile(ctx context.Context, rgnC
 	}
 	if err != nil {
 		return err
-	}
-
-	// if the clustersummary profile spec does not match our profile spec then the reconciliation hasn't happened yet
-	// TODO figure out what to do here
-	if !equality.Semantic.DeepEqual(summary.Spec.ClusterProfileSpec, profile.Spec) {
-		l.V(1).Info("ClusterSummary status is not up to date. Not updating status.", "summary", summary)
-		return nil
 	}
 
 	l.V(1).Info("Found matching ClusterSummary", "summary", client.ObjectKeyFromObject(summary))
@@ -1379,7 +1369,7 @@ func servicesStateFromSummary(
 			Name:                    service.Name,
 			Namespace:               service.Namespace,
 			Template:                service.Template,
-			Version:                 service.Template,
+			Version:                 service.Version,
 			State:                   kcmv1.ServiceStateProvisioning,
 			FailureMessage:          "",
 		}
