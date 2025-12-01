@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -100,7 +101,7 @@ type profileConfig struct {
 type ServiceSetReconciler struct {
 	client.Client
 
-	timeFunc  func() time.Time
+	TimeFunc  func() time.Time
 	eventChan chan event.GenericEvent
 
 	SystemNamespace string
@@ -168,7 +169,7 @@ func (r *ServiceSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return
 		}
 
-		fillNotDeployedServices(serviceSet, r.timeFunc)
+		fillNotDeployedServices(serviceSet, r.TimeFunc)
 		// if serviceSet status changed we'll update object's
 		// status, so object being reconciled will be requeued,
 		// otherwise we'll do nothing since the poller will
@@ -230,7 +231,7 @@ func (r *ServiceSetReconciler) reconcileDelete(ctx context.Context, rgnClient cl
 			}
 			newState := state.DeepCopy()
 			newState.State = kcmv1.ServiceStateDeleting
-			newState.LastStateTransitionTime = pointerutil.To(metav1.NewTime(r.timeFunc()))
+			newState.LastStateTransitionTime = pointerutil.To(metav1.NewTime(r.TimeFunc()))
 			serviceStates = append(serviceStates, *newState)
 		}
 		serviceSet.Status.Services = serviceStates
@@ -278,8 +279,8 @@ func (r *ServiceSetReconciler) reconcileDelete(ctx context.Context, rgnClient cl
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Client = mgr.GetClient()
-	if r.timeFunc == nil {
-		r.timeFunc = time.Now
+	if r.TimeFunc == nil {
+		r.TimeFunc = time.Now
 	}
 	r.requeueInterval = 10 * time.Second
 
@@ -368,7 +369,7 @@ func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient clie
 	message := kcmv1.ServiceSetProfileNotReadyMessage
 
 	defer func() {
-		if updateCondition(serviceSet, profileCondition, status, reason, message, r.timeFunc()) && status == metav1.ConditionTrue {
+		if updateCondition(serviceSet, profileCondition, status, reason, message, r.TimeFunc()) && status == metav1.ConditionTrue {
 			l.Info("Successfully ensured ProjectSveltos Profile")
 			record.Eventf(serviceSet, serviceSet.Generation, kcmv1.ServiceSetEnsureProfileSuccessEvent,
 				"Successfully ensured ProjectSveltos Profile for ServiceSet %s", serviceSet.Name)
@@ -878,10 +879,7 @@ func helmChartFromSpecOrRef(
 		helmOptions = &kcmv1.ServiceHelmOptions{}
 	}
 
-	if err := mergeHelmOptions(svc.HelmOptions, helmOptions); err != nil {
-		return addoncontrollerv1beta1.HelmChart{}, err
-	}
-
+	mergeHelmOptions(svc.HelmOptions, helmOptions)
 	helmChart = addoncontrollerv1beta1.HelmChart{
 		Values:        svc.Values,
 		ValuesFrom:    convertValuesFrom(svc.ValuesFrom, namespace),
@@ -904,20 +902,24 @@ func helmChartFromSpecOrRef(
 }
 
 // mergeHelmOptions merges the values from the given source ServiceHelmOptions to the destination ServiceHelmOptions
-func mergeHelmOptions(src, dst *kcmv1.ServiceHelmOptions) error {
-	if src == nil {
-		return nil
+func mergeHelmOptions(src, dst *kcmv1.ServiceHelmOptions) {
+	if src == nil || dst == nil {
+		return
 	}
 
-	data, err := json.Marshal(src)
-	if err != nil {
-		return fmt.Errorf("failed to marshal HelmOptions: %w", err)
-	}
+	sv := reflect.ValueOf(src).Elem()
+	dv := reflect.ValueOf(dst).Elem()
 
-	if err := json.Unmarshal(data, dst); err != nil {
-		return fmt.Errorf("failed to unmarshal HelmOptions: %w", err)
+	for i := range sv.NumField() {
+		sf := sv.Field(i)
+		df := dv.Field(i)
+
+		if !sf.IsZero() {
+			if df.CanSet() {
+				df.Set(sf)
+			}
+		}
 	}
-	return nil
 }
 
 // generateRegistryCredentialsConfig returns a RegistryCredentialsConfig object.
@@ -980,10 +982,7 @@ func helmChartFromFluxSource(
 		helmOptions = &kcmv1.ServiceHelmOptions{}
 	}
 
-	if err := mergeHelmOptions(svc.HelmOptions, helmOptions); err != nil {
-		return addoncontrollerv1beta1.HelmChart{}, err
-	}
-
+	mergeHelmOptions(svc.HelmOptions, helmOptions)
 	helmChart = addoncontrollerv1beta1.HelmChart{
 		RepositoryURL:    url,
 		ReleaseName:      svc.Name,
