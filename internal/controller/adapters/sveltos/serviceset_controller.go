@@ -101,7 +101,7 @@ type profileConfig struct {
 type ServiceSetReconciler struct {
 	client.Client
 
-	TimeFunc  func() time.Time
+	timeFunc  func() time.Time
 	eventChan chan event.GenericEvent
 
 	SystemNamespace string
@@ -169,7 +169,7 @@ func (r *ServiceSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return
 		}
 
-		fillNotDeployedServices(serviceSet, r.TimeFunc)
+		fillNotDeployedServices(serviceSet, r.timeFunc)
 		// if serviceSet status changed we'll update object's
 		// status, so object being reconciled will be requeued,
 		// otherwise we'll do nothing since the poller will
@@ -231,7 +231,7 @@ func (r *ServiceSetReconciler) reconcileDelete(ctx context.Context, rgnClient cl
 			}
 			newState := state.DeepCopy()
 			newState.State = kcmv1.ServiceStateDeleting
-			newState.LastStateTransitionTime = pointerutil.To(metav1.NewTime(r.TimeFunc()))
+			newState.LastStateTransitionTime = pointerutil.To(metav1.NewTime(r.timeFunc()))
 			serviceStates = append(serviceStates, *newState)
 		}
 		serviceSet.Status.Services = serviceStates
@@ -279,8 +279,8 @@ func (r *ServiceSetReconciler) reconcileDelete(ctx context.Context, rgnClient cl
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Client = mgr.GetClient()
-	if r.TimeFunc == nil {
-		r.TimeFunc = time.Now
+	if r.timeFunc == nil {
+		r.timeFunc = time.Now
 	}
 	r.requeueInterval = 10 * time.Second
 
@@ -369,7 +369,7 @@ func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient clie
 	message := kcmv1.ServiceSetProfileNotReadyMessage
 
 	defer func() {
-		if updateCondition(serviceSet, profileCondition, status, reason, message, r.TimeFunc()) && status == metav1.ConditionTrue {
+		if updateCondition(serviceSet, profileCondition, status, reason, message, r.timeFunc()) && status == metav1.ConditionTrue {
 			l.Info("Successfully ensured ProjectSveltos Profile")
 			record.Eventf(serviceSet, serviceSet.Generation, kcmv1.ServiceSetEnsureProfileSuccessEvent,
 				"Successfully ensured ProjectSveltos Profile for ServiceSet %s", serviceSet.Name)
