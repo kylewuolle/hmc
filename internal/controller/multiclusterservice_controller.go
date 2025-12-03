@@ -602,13 +602,13 @@ func (r *MultiClusterServiceReconciler) createOrUpdateServiceSet(
 	}
 	l.V(1).Info("Services to deploy after filtering services that are not dependent on any other service", "services", filteredServices)
 
-	err = serviceset.ResolveServiceVersions(ctx, r.Client, cd.Namespace, filteredServices)
+	err = serviceset.ResolveServiceVersions(ctx, r.Client, serviceSet.Namespace, filteredServices)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve version information for filtered services: %w", err)
 	}
 
 	serviceSetServices := serviceSet.Spec.Services
-	err = serviceset.ResolveServiceVersions(ctx, r.Client, cd.Namespace, serviceSetServices)
+	err = serviceset.ResolveServiceVersions(ctx, r.Client, serviceSet.Namespace, serviceSetServices)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve version information for service set services: %w", err)
 	}

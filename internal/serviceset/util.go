@@ -91,6 +91,10 @@ func fillServiceVersions(ctx context.Context, c client.Client, namespace string,
 				version = template.Spec.Helm.ChartSpec.Version
 			}
 			svc.Version = version
+
+			if svc.Version == "" {
+				svc.Version = svc.Template
+			}
 		}
 	}
 	return nil
@@ -109,6 +113,9 @@ func fillServiceWithValueVersions(ctx context.Context, c client.Client, namespac
 				version = template.Spec.Helm.ChartSpec.Version
 			}
 			svc.Version = version
+			if svc.Version == "" {
+				svc.Version = svc.Template
+			}
 		}
 	}
 	return nil
@@ -168,6 +175,9 @@ func ServicesUpgradePaths(
 		if svc.TemplateChain == "" {
 			// Add service as an available upgrade for itself.
 			// E.g., if the service needs to be upgraded with new helm values.
+			if svc.Version == "" {
+				svc.Version = svc.Template
+			}
 			serviceUpgradePaths.AvailableUpgrades = append(serviceUpgradePaths.AvailableUpgrades, kcmv1.UpgradePath{
 				Versions: []kcmv1.AvailableUpgrade{{Name: svc.Template, Version: svc.Version}},
 			})
@@ -298,6 +308,9 @@ func ServicesToDeploy(
 	// Build desired services map
 	for _, s := range desiredServices {
 		key := client.ObjectKey{Namespace: effectiveNamespace(s.Namespace), Name: s.Name}
+		if s.Version == "" {
+			s.Version = s.Template
+		}
 		desiredServiceVersions[key] = s.Version
 		desiredServiceTemplates[key] = s.Template
 		// mark all services upgradeable by default (so new ones won't be skipped)
@@ -529,6 +542,9 @@ func needsUpdate(
 	servicesMap := make(map[client.ObjectKey]kcmv1.ServiceWithValues)
 	for _, s := range services {
 		svcNamespace := effectiveNamespace(s.Namespace)
+		if s.Version == "" {
+			s.Version = s.Template
+		}
 		servicesMap[client.ObjectKey{Name: s.Name, Namespace: svcNamespace}] = kcmv1.ServiceWithValues{
 			Name:        s.Name,
 			Namespace:   svcNamespace,
