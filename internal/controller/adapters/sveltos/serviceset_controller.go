@@ -875,8 +875,8 @@ func helmChartFromSpecOrRef(
 	}
 
 	helmOptions := template.Spec.HelmOptions
-	if template.Spec.HelmOptions == nil {
-		helmOptions = &kcmv1.ServiceHelmOptions{}
+	if helmOptions == nil {
+		helmOptions = svc.HelmOptions
 	}
 
 	mergeHelmOptions(svc.HelmOptions, helmOptions)
@@ -914,10 +914,32 @@ func mergeHelmOptions(src, dst *kcmv1.ServiceHelmOptions) {
 		sf := sv.Field(i)
 		df := dv.Field(i)
 
-		if !sf.IsZero() {
-			if df.CanSet() {
+		if !df.CanSet() {
+			continue
+		}
+
+		if sf.Kind() == reflect.Ptr && !sf.IsNil() && sf.Elem().Kind() == reflect.Map {
+			srcMap := sf.Elem()
+
+			if df.IsNil() {
 				df.Set(sf)
+				continue
 			}
+
+			if df.Elem().IsNil() {
+				newMap := reflect.MakeMap(srcMap.Type())
+				df.Elem().Set(newMap)
+			}
+
+			dstMap := df.Elem()
+			for _, k := range srcMap.MapKeys() {
+				dstMap.SetMapIndex(k, srcMap.MapIndex(k))
+			}
+			continue
+		}
+
+		if !sf.IsZero() {
+			df.Set(sf)
 		}
 	}
 }
@@ -978,8 +1000,8 @@ func helmChartFromFluxSource(
 	url := fmt.Sprintf("%s://%s/%s/%s", status.Kind, status.Namespace, status.Name, sanitizedPath)
 
 	helmOptions := template.Spec.HelmOptions
-	if template.Spec.HelmOptions == nil {
-		helmOptions = &kcmv1.ServiceHelmOptions{}
+	if helmOptions == nil {
+		helmOptions = svc.HelmOptions
 	}
 
 	mergeHelmOptions(svc.HelmOptions, helmOptions)
