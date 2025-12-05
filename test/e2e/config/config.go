@@ -37,7 +37,7 @@ const (
 	TestingProviderVsphere   TestingProvider = "vsphere"
 	TestingProviderAdopted   TestingProvider = "adopted"
 	TestingProviderRemote    TestingProvider = "remote"
-	TestingProviderDocker  TestingProvider = "docker"
+	TestingProviderDocker    TestingProvider = "docker"
 )
 
 type Architecture string

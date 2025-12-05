@@ -18,9 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"

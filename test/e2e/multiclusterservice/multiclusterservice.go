@@ -104,9 +104,9 @@ func CreateMultiClusterServiceWithDelete(
 	}
 }
 
-func DeleteMultiClusterService(ctx context.Context, cl crclient.Client, mc *kcmv1.MultiClusterService) {
+func DeleteMultiClusterService(ctx context.Context, cl client.Client, mc *kcmv1.MultiClusterService) {
 	Eventually(func() error {
-		err := crclient.IgnoreNotFound(cl.Delete(ctx, mc))
+		err := client.IgnoreNotFound(cl.Delete(ctx, mc))
 		if err != nil {
 			logs.Println("failed to delete MultiClusterService: " + err.Error())
 		}

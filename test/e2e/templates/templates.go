@@ -177,7 +177,6 @@ func CreateServiceTemplateWithDelete(ctx context.Context, client crclient.Client
 	}
 }
 
-
 // CreateTemplateChain creates a ServiceTemplateChain and waits for it to become valid
 func CreateTemplateChain(ctx context.Context, client crclient.Client, namespace, name string, spec kcmv1.TemplateChainSpec) {
 	obj := &kcmv1.ServiceTemplateChain{
