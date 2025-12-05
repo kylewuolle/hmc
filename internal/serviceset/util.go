@@ -112,9 +112,9 @@ func fillServiceWithValueVersions(ctx context.Context, c client.Client, namespac
 			if version == "" && template.Spec.Helm != nil && template.Spec.Helm.ChartSpec != nil {
 				version = template.Spec.Helm.ChartSpec.Version
 			}
-			svc.Version = version
-			if svc.Version == "" {
-				svc.Version = svc.Template
+			svc.Version = &version
+			if svc.Version == nil {
+				svc.Version = &svc.Template
 			}
 		}
 	}
@@ -288,6 +288,36 @@ func FilterServiceDependencies(
 	return filtered, nil
 }
 
+func makeService(s kcmv1.Service, version, template string) kcmv1.ServiceWithValues {
+	return kcmv1.ServiceWithValues{
+		Name:        s.Name,
+		Namespace:   s.Namespace,
+		Version:     &version,
+		Template:    template,
+		Values:      s.Values,
+		ValuesFrom:  s.ValuesFrom,
+		HelmOptions: s.HelmOptions,
+	}
+}
+
+func appendIfNotPresent(
+	services []kcmv1.ServiceWithValues,
+	s kcmv1.Service,
+	minimumUpgrade kcmv1.AvailableUpgrade,
+) []kcmv1.ServiceWithValues {
+	exists := slices.ContainsFunc(services, func(c kcmv1.ServiceWithValues) bool {
+		return c.Name == s.Name &&
+			c.Namespace == s.Namespace &&
+			c.Version != nil &&
+			*c.Version == minimumUpgrade.Version
+	})
+
+	if !exists {
+		return append(services, makeService(s, minimumUpgrade.Version, minimumUpgrade.Name))
+	}
+	return services
+}
+
 // ServicesToDeploy returns the services to deploy based on the ClusterDeployment spec,
 // taking into account already deployed services, and versioning.
 func ServicesToDeploy(
@@ -324,16 +354,16 @@ func ServicesToDeploy(
 		key := client.ObjectKey{Namespace: effectiveNamespace(svc.Namespace), Name: svc.Name}
 		desiredVersion := desiredServiceVersions[key]
 		// check upgrade availability
-		upgradeAvailable[key] = desiredVersion < svc.Version ||
+		upgradeAvailable[key] = svc.Version != nil && desiredVersion < *svc.Version ||
 			desiredVersionInUpgradePaths(upgradePaths, svc, desiredVersion)
 		for _, serviceState := range serviceSet.Status.Services {
 			if serviceState.State == kcmv1.ServiceStateDeployed &&
-				serviceState.Namespace == svc.Namespace && serviceState.Name == svc.Name {
-				deployedServiceVersions[key] = serviceState.Version
+				serviceState.Namespace == svc.Namespace && serviceState.Name == svc.Name && serviceState.Version != nil {
+				deployedServiceVersions[key] = *serviceState.Version
 			}
 		}
 
-		if svc.Version != deployedServiceVersions[key] {
+		if svc.Version != nil && *svc.Version != deployedServiceVersions[key] {
 			services = append(services, svc)
 
 			for i := 0; i < len(desiredServices); {
@@ -370,15 +400,7 @@ func ServicesToDeploy(
 		desiredTemplate := desiredServiceTemplates[key]
 		// if no upgrade paths defined, just deploy desired version
 		if len(upgradePaths) == 0 {
-			services = append(services, kcmv1.ServiceWithValues{
-				Name:        s.Name,
-				Namespace:   s.Namespace,
-				Version:     desiredVersion,
-				Template:    desiredTemplate,
-				Values:      s.Values,
-				ValuesFrom:  s.ValuesFrom,
-				HelmOptions: s.HelmOptions,
-			})
+			services = append(services, makeService(s, desiredVersion, desiredTemplate))
 		}
 
 		// process upgrade paths (assume ordered lowest → highest)
@@ -417,22 +439,9 @@ func ServicesToDeploy(
 			}
 		}
 
-		if !slices.ContainsFunc(services, func(c kcmv1.ServiceWithValues) bool {
-			return c.Name == s.Name &&
-				c.Namespace == s.Namespace &&
-				c.Version == minimumUpgrade.Version
-		}) {
-			services = append(services, kcmv1.ServiceWithValues{
-				Name:        s.Name,
-				Namespace:   s.Namespace,
-				Version:     minimumUpgrade.Version,
-				Template:    minimumUpgrade.Name,
-				Values:      s.Values,
-				ValuesFrom:  s.ValuesFrom,
-				HelmOptions: s.HelmOptions,
-			})
-		}
+		services = appendIfNotPresent(services, s, minimumUpgrade)
 	}
+
 	return services
 }
 
@@ -552,7 +561,7 @@ func needsUpdate(
 			Values:      s.Values,
 			ValuesFrom:  s.ValuesFrom,
 			HelmOptions: s.HelmOptions,
-			Version:     s.Version,
+			Version:     &s.Version,
 		}
 	}
 

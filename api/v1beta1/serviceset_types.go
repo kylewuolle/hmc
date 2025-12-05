@@ -133,7 +133,10 @@ type ServiceWithValues struct {
 	// then the name is the name of the Helm release.
 	Name string `json:"name"`
 
-	Version string `json:"version"`
+	// +optional
+
+	// Version is the version of the service.
+	Version *string `json:"version,omitempty"`
 
 	// Namespace is the namespace where the service is deployed. If the ServiceTemplate
 	// is backed by Helm chart, then the namespace is the namespace where the Helm release is deployed.
@@ -214,8 +217,10 @@ type ServiceState struct {
 	// Template is the name of the ServiceTemplate used to deploy the Service
 	Template string `json:"template"`
 
+	// +optional
+
 	// Version is the version of the Service
-	Version string `json:"version"`
+	Version *string `json:"version,omitempty"`
 
 	// State is the state of the Service
 	// +kubebuilder:validation:Enum=Deployed;Provisioning;Failed;Pending;Deleting

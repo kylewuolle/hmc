@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -91,13 +92,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 					Name:      "service1",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template1-1-0-0",
-					Version:   "1.1.0.0",
+					Version:   ptr.To("1.1.0.0"),
 				},
 				{
 					Name:      "service2",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template2-1-0-0",
-					Version:   "2.1.0.0",
+					Version:   ptr.To("2.1.0.0"),
 				},
 			},
 		},
@@ -146,13 +147,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 							State:     kcmv1.ServiceStateDeployed,
 							Name:      "service1",
 							Namespace: metav1.NamespaceDefault,
-							Version:   "1.1.0.0",
+							Version:   ptr.To("1.1.0.0"),
 						},
 						{
 							State:     kcmv1.ServiceStateDeployed,
 							Name:      "service2",
 							Namespace: metav1.NamespaceDefault,
-							Version:   "2.1.0.0",
+							Version:   ptr.To("2.1.0.0"),
 						},
 					},
 				},
@@ -162,13 +163,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 							Name:      "service1",
 							Namespace: metav1.NamespaceDefault,
 							Template:  "template1-1-0-0",
-							Version:   "1.1.0.0",
+							Version:   ptr.To("1.1.0.0"),
 						},
 						{
 							Name:      "service2",
 							Namespace: metav1.NamespaceDefault,
 							Template:  "template2-1-0-0",
-							Version:   "2.1.0.0",
+							Version:   ptr.To("2.1.0.0"),
 						},
 					},
 				},
@@ -178,13 +179,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 					Name:      "service1",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template1-1-5-0",
-					Version:   "1.1.5.0",
+					Version:   ptr.To("1.1.5.0"),
 				},
 				{
 					Name:      "service2",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template2-1-0-0",
-					Version:   "2.1.0.0",
+					Version:   ptr.To("2.1.0.0"),
 				},
 			},
 		},
@@ -233,13 +234,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 							Name:      "service1",
 							Namespace: metav1.NamespaceDefault,
 							Template:  "template1-1-0-0",
-							Version:   "1.1.0.0",
+							Version:   ptr.To("1.1.0.0"),
 						},
 						{
 							Name:      "service2",
 							Namespace: metav1.NamespaceDefault,
 							Template:  "template2-1-0-0",
-							Version:   "2.1.0.0",
+							Version:   ptr.To("2.1.0.0"),
 						},
 					},
 				},
@@ -249,13 +250,13 @@ func Test_ServicesToDeploy(t *testing.T) {
 					Name:      "service1",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template1-1-0-0",
-					Version:   "1.1.0.0",
+					Version:   ptr.To("1.1.0.0"),
 				},
 				{
 					Name:      "service2",
 					Namespace: metav1.NamespaceDefault,
 					Template:  "template2-1-0-0",
-					Version:   "2.1.0.0",
+					Version:   ptr.To("2.1.0.0"),
 				},
 			},
 		},

@@ -1447,7 +1447,6 @@ spec:
                   - state
                   - template
                   - type
-                  - version
                   type: object
                 type: array
               servicesUpgradePaths:
