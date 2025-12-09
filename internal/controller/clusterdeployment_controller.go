@@ -1358,6 +1358,7 @@ func (r *ClusterDeploymentReconciler) deleteChildResources(ctx context.Context, 
 
 	const deletionTimeout = 10 * time.Second // magic number
 	eg, gctx := errgroup.WithContext(ctx)
+	gctx = ctrl.LoggerInto(gctx, l)
 	now := time.Now()
 	eg.Go(func() error {
 		if err := kubeutil.DeleteAllExceptAndWait(
@@ -1379,6 +1380,7 @@ func (r *ClusterDeploymentReconciler) deleteChildResources(ctx context.Context, 
 		}
 
 		if !exist {
+			l.V(1).Info("No PVCs present, nothing to delete")
 			return nil
 		}
 
