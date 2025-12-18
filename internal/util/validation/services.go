@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,8 +38,14 @@ func ServicesHaveValidTemplates(ctx context.Context, cl client.Client, services 
 	var errs error
 	for _, svc := range services {
 		if svc.Namespace != "" {
-			for _, msg := range validation.IsDNS1123Label(svc.Namespace) {
+			for _, msg := range validation.ValidateNamespaceName(svc.Namespace, false) {
 				errs = errors.Join(errs, field.Invalid(field.NewPath("namespace"), svc.Namespace, msg))
+			}
+		}
+
+		if svc.Name != "" {
+			for _, msg := range validation.ValidateNamespaceName(svc.Name, false) {
+				errs = errors.Join(errs, field.Invalid(field.NewPath("name"), svc.Name, msg))
 			}
 		}
 
