@@ -768,6 +768,10 @@ func getHelmCharts(ctx context.Context, c client.Client, serviceSet *kcmv1.Servi
 			return nil, err
 		}
 
+		if svc.HelmAction != nil {
+			helmChart.HelmChartAction = addoncontrollerv1beta1.HelmChartAction(*svc.HelmAction)
+		}
+
 		helmCharts = append(helmCharts, helmChart)
 
 		if !slices.ContainsFunc(serviceSet.Status.Services, func(s kcmv1.ServiceState) bool {
@@ -1193,8 +1197,8 @@ func convertHelmOptions(options *kcmv1.ServiceHelmOptions) *addoncontrollerv1bet
 		toReturn.Description = *options.Description
 	}
 
-	if options.Replace != nil {
-		toReturn.InstallOptions.Replace = *options.Replace
+	if options.Replace != nil { //nolint:staticcheck // required for backwards compatibility
+		toReturn.InstallOptions.Replace = *options.Replace //nolint:staticcheck
 	}
 	if options.DisableHooks != nil {
 		toReturn.InstallOptions.DisableHooks = *options.DisableHooks
