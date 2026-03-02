@@ -116,6 +116,9 @@ func DeleteMultiClusterService(ctx context.Context, cl client.Client, mc *kcmv1.
 
 func checkClusterReadyConditionInMCS(mcsName string, expectedCount int, conditions []metav1.Condition) (err error) {
 	var found bool
+	if expectedCount == 0 {
+		return nil
+	}
 	expected := strconv.Itoa(expectedCount) + "/" + strconv.Itoa(expectedCount)
 
 	for _, cond := range conditions {

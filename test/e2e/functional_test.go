@@ -32,6 +32,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
+	"github.com/K0rdent/kcm/internal/serviceset"
 	kubeutil "github.com/K0rdent/kcm/internal/util/kube"
 	"github.com/K0rdent/kcm/test/e2e/clusterdeployment"
 	"github.com/K0rdent/kcm/test/e2e/config"
@@ -188,7 +189,7 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 			By(fmt.Sprintf("Testing configuration:\n%s\n", cfg.String()))
 			clusterName := clusterdeployment.GenerateClusterName(fmt.Sprintf("docker-%d", i))
 
-			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName, templateChainName)
+			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName)
 			clusterNames = append(clusterNames, clusterName)
 			clusterDeleteFunc = deleteFn
 
@@ -213,11 +214,11 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 
 			clusterName := clusterdeployment.GenerateClusterName(fmt.Sprintf("docker-%d", i))
 
-			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName, templateChainName)
+			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName)
 			clusterNames = append(clusterNames, clusterName)
 			clusterDeleteFunc = deleteFn
 
-			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services, 10*time.Minute, 10*time.Second)
+			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services)
 
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[2])
 
@@ -294,7 +295,7 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 			deployValidator := clusterdeployment.NewProviderValidator(templates.TemplateDockerCluster, clusterName, clusterdeployment.ValidationActionDeploy)
 			Eventually(func() error { return deployValidator.Validate(ctx, kc) }, validatorTimeout, validatorPoll).Should(Succeed())
 
-			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services, 10*time.Minute, 10*time.Second)
+			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services)
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[2])
 
 			expectedVersions := []string{
@@ -331,11 +332,11 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 
 			clusterName := clusterdeployment.GenerateClusterName(fmt.Sprintf("docker-%d", i))
 
-			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName, templateChainName)
+			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName)
 			clusterNames = append(clusterNames, clusterName)
 			clusterDeleteFunc = deleteFn
 
-			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services, 10*time.Minute, 10*time.Second)
+			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services)
 
 			serviceSet := &kcmv1.ServiceSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -360,17 +361,152 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 				return nil
 			}, 30*time.Minute, 10*time.Second).Should(Succeed())
 
-			serviceSet.SetAnnotations(map[string]string{})
-			Expect(kc.CrClient.Update(ctx, serviceSet)).NotTo(HaveOccurred(), "failed to update ServiceSet")
+			Eventually(ctx, func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(serviceSet), serviceSet)).NotTo(HaveOccurred())
+				serviceSet.SetAnnotations(map[string]string{})
+				return kc.CrClient.Update(ctx, serviceSet)
+			}, 30*time.Minute, 10*time.Second).Should(Succeed())
 
+			Expect(clusterDeleteFunc()).Error().NotTo(HaveOccurred(), "failed to delete cluster")
+			clusterDeleteFunc = nil
+		})
+
+		// TODO sveltos currently doesn't update the status of the helmReleaseSummaries when
+		// a deployed helm release is updated to be invalid
+		XIt("Invalid multicluster service test", func() {
+			const (
+				multiClusterServiceName       = "test-multicluster"
+				multiClusterServiceMatchLabel = "k0rdent.mirantis.com/test-cluster-name"
+			)
+
+			defer GinkgoRecover()
+			ctx := context.Background()
+			cfg.SetDefaults(clusterTemplates, config.TestingProviderDocker)
+
+			By(fmt.Sprintf("Testing configuration:\n%s\n", cfg.String()))
+			clusterName := clusterdeployment.GenerateClusterName(fmt.Sprintf("docker-%d", i))
+
+			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName)
+
+			clusterDeleteFunc = deleteFn
+
+			mcs := multiclusterservice.BuildMultiClusterService(sd, multiClusterServiceTemplate, multiClusterServiceMatchLabel, multiClusterServiceName)
+			mcsServiceSpec := mcs.Spec.ServiceSpec
+			mcs.Spec.ServiceSpec = kcmv1.ServiceSpec{}
+			multiclusterservice.CreateMultiClusterService(ctx, kc.CrClient, mcs)
+
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(mcs), mcs)).NotTo(HaveOccurred(), "failed to fetch MulticlusterService")
+				mcs.Spec.ServiceSpec = mcsServiceSpec
+				return kc.CrClient.Update(ctx, mcs)
+			}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			multiclusterservice.ValidateMultiClusterService(ctx, kc, multiClusterServiceName, 1)
+
+			waitForServiceDeployments(ctx, kc, sd, mcs.Spec.ServiceSpec.Services)
+			serviceSetObjectKey := serviceset.ObjectKey(kubeutil.DefaultSystemNamespace, sd, mcs)
+			validateClusterProfile(ctx, serviceSetObjectKey, mcs.Spec.ServiceSpec, kc)
+
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(mcs), mcs)).NotTo(HaveOccurred(), "failed to fetch MulticlusterService")
+				mcs.Spec.ServiceSpec.Services[0].Values = "invalid, abcd, not valid, not valid"
+				Expect(kc.CrClient.Update(ctx, mcs)).NotTo(HaveOccurred())
+				return nil
+			}).WithTimeout(1 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			// TODO validate that the service set service in question is now marked as failed
+		})
+
+		It("Valid multicluster service test", func() {
+			const (
+				multiClusterServiceName       = "test-multicluster"
+				multiClusterServiceMatchLabel = "k0rdent.mirantis.com/test-cluster-name"
+			)
+
+			defer GinkgoRecover()
+			ctx := context.Background()
+			cfg.SetDefaults(clusterTemplates, config.TestingProviderDocker)
+
+			By(fmt.Sprintf("Testing configuration:\n%s\n", cfg.String()))
+			clusterName := clusterdeployment.GenerateClusterName(fmt.Sprintf("docker-%d", i))
+
+			sd, deleteFn := createAndWaitCluster(ctx, kc, clusterName)
+
+			clusterDeleteFunc = deleteFn
+
+			mcs := multiclusterservice.BuildMultiClusterService(sd, multiClusterServiceTemplate, multiClusterServiceMatchLabel, multiClusterServiceName)
+			mcsServiceSpec := mcs.Spec.ServiceSpec
+			mcs.Spec.ServiceSpec = kcmv1.ServiceSpec{}
+			multiclusterservice.CreateMultiClusterService(ctx, kc.CrClient, mcs)
+
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(mcs), mcs)).NotTo(HaveOccurred(), "failed to fetch MulticlusterService")
+				mcs.Spec.ServiceSpec = mcsServiceSpec
+				return kc.CrClient.Update(ctx, mcs)
+			}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			multiclusterservice.ValidateMultiClusterService(ctx, kc, multiClusterServiceName, 1)
+
+			waitForServiceDeployments(ctx, kc, sd, mcs.Spec.ServiceSpec.Services)
+			serviceSetObjectKey := serviceset.ObjectKey(kubeutil.DefaultSystemNamespace, sd, mcs)
+			validateClusterProfile(ctx, serviceSetObjectKey, mcs.Spec.ServiceSpec, kc)
+
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(mcs), mcs)).NotTo(HaveOccurred(), "failed to fetch MulticlusterService")
+				mcs.Spec.ServiceSpec.Services[0].Values = "opencost:\n            ui:\n              enabled: false"
+				Expect(kc.CrClient.Update(ctx, mcs)).NotTo(HaveOccurred())
+				return nil
+			}).WithTimeout(1 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+
+			waitForServiceDeployments(ctx, kc, sd, mcs.Spec.ServiceSpec.Services)
+			validateClusterProfile(ctx, serviceSetObjectKey, mcs.Spec.ServiceSpec, kc)
+
+			multiclusterservice.DeleteMultiClusterService(ctx, kc.CrClient, mcs)
 			Expect(clusterDeleteFunc()).Error().NotTo(HaveOccurred(), "failed to delete cluster")
 			clusterDeleteFunc = nil
 		})
 	}
 })
 
+func validateClusterProfile(ctx context.Context, key crclient.ObjectKey, spec kcmv1.ServiceSpec, kc *kubeclient.KubeClient) {
+	profile := new(addoncontrollerv1beta1.Profile)
+	Eventually(func() error {
+		Expect(kc.CrClient.Get(ctx, key, profile)).Error().NotTo(HaveOccurred(), "failed to fetch Profile")
+		return validateProfileSpec(ctx, profile.Spec, spec, kc)
+	}).WithTimeout(20 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+}
+
+func validateProfileSpec(ctx context.Context, profileSpec addoncontrollerv1beta1.Spec, serviceSpec kcmv1.ServiceSpec, kc *kubeclient.KubeClient) error {
+	serviceTemplatesToCharts := make(map[string]string)
+	for _, svc := range serviceSpec.Services {
+		svcTemplate := &kcmv1.ServiceTemplate{}
+		if err := kc.CrClient.Get(ctx, crclient.ObjectKey{Namespace: kubeutil.DefaultSystemNamespace, Name: svc.Template}, svcTemplate); err != nil {
+			return err
+		}
+		if svcTemplate.HelmChartSpec() != nil {
+			serviceTemplatesToCharts[svc.Template] = svcTemplate.HelmChartSpec().Chart
+		}
+	}
+
+	allFound := false
+	for _, helmChart := range profileSpec.HelmCharts {
+		for _, svc := range serviceSpec.Services {
+			if serviceTemplatesToCharts[svc.Template] == helmChart.ChartName {
+				if helmChart.Values == svc.Values {
+					allFound = true
+				}
+				break
+			}
+		}
+	}
+	if !allFound {
+		return fmt.Errorf("failed to validate profile")
+	}
+	return nil
+}
+
 // createAndWaitCluster centralizes cluster creation, waiting for deploy and returns the created ClusterDeployment + delete function.
-func createAndWaitCluster(ctx context.Context, kc *kubeclient.KubeClient, clusterName, templateChainName string) (*kcmv1.ClusterDeployment, func() error) {
+func createAndWaitCluster(ctx context.Context, kc *kubeclient.KubeClient, clusterName string) (*kcmv1.ClusterDeployment, func() error) {
 	dockerTemplates := templates.FindLatestTemplatesWithType(
 		clusterTemplates,
 		templates.TemplateDockerCluster,
@@ -440,7 +576,6 @@ func waitForServiceDeployments(
 	kc *kubeclient.KubeClient,
 	sd *kcmv1.ClusterDeployment,
 	services []kcmv1.Service,
-	timeout, interval time.Duration,
 ) {
 	serviceSet := &kcmv1.ServiceSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -475,7 +610,7 @@ func waitForServiceDeployments(
 		}
 
 		return nil
-	}, timeout, interval).Should(Succeed())
+	}, 10*time.Minute, 10*time.Second).Should(Succeed())
 }
 
 // waitForServiceSetVersions waits until the serviceset is updated with the given versions
