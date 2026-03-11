@@ -61,64 +61,43 @@ func ObjectKey(systemNamespace string, cd *kcmv1.ClusterDeployment, mcs *kcmv1.M
 	}
 }
 
-func ResolveServiceVersions(ctx context.Context, c client.Client, namespace string, services any) error {
-	switch s := services.(type) {
-	case []kcmv1.Service:
-		ptrs := make([]*kcmv1.Service, len(s))
-		for i := range s {
-			ptrs[i] = &s[i]
-		}
-		return fillServiceVersions(ctx, c, namespace, ptrs)
-
-	case []kcmv1.ServiceWithValues:
-		ptrs := make([]*kcmv1.ServiceWithValues, len(s))
-		for i := range s {
-			ptrs[i] = &s[i]
-		}
-		return fillServiceWithValueVersions(ctx, c, namespace, ptrs)
-
-	default:
-		return fmt.Errorf("unsupported slice type %T", services)
-	}
-}
-
-func fillServiceVersions(ctx context.Context, c client.Client, namespace string, services []*kcmv1.Service) error {
-	for _, svc := range services {
-		if svc.Version == "" && svc.Template != "" {
+func fillServiceVersions(ctx context.Context, c client.Client, namespace string, services []kcmv1.Service) error {
+	for i := range services {
+		if services[i].Version == "" && services[i].Template != "" {
 			template := kcmv1.ServiceTemplate{}
-			if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: svc.Template}, &template); err != nil {
-				return fmt.Errorf("failed to fetch template %s: %w", svc.Template, err)
+			if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: services[i].Template}, &template); err != nil {
+				return fmt.Errorf("failed to fetch template %s: %w", services[i].Template, err)
 			}
 
 			version := template.Spec.Version
 			if version == "" && template.Spec.Helm != nil && template.Spec.Helm.ChartSpec != nil {
 				version = template.Spec.Helm.ChartSpec.Version
 			}
-			svc.Version = version
+			services[i].Version = version
 
-			if svc.Version == "" {
-				svc.Version = svc.Template
+			if services[i].Version == "" {
+				services[i].Version = services[i].Template
 			}
 		}
 	}
 	return nil
 }
 
-func fillServiceWithValueVersions(ctx context.Context, c client.Client, namespace string, services []*kcmv1.ServiceWithValues) error {
-	for _, svc := range services {
-		if svc.Values == "" && svc.Template != "" {
+func fillServiceWithValueVersions(ctx context.Context, c client.Client, namespace string, services []kcmv1.ServiceWithValues) error {
+	for i := range services {
+		if services[i].Values == "" && services[i].Template != "" {
 			template := kcmv1.ServiceTemplate{}
-			if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: svc.Template}, &template); err != nil {
-				return fmt.Errorf("failed to fetch Template %s: %w", svc.Template, err)
+			if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: services[i].Template}, &template); err != nil {
+				return fmt.Errorf("failed to fetch Template %s: %w", services[i].Template, err)
 			}
 
 			version := template.Spec.Version
 			if version == "" && template.Spec.Helm != nil && template.Spec.Helm.ChartSpec != nil {
 				version = template.Spec.Helm.ChartSpec.Version
 			}
-			svc.Version = &version
-			if svc.Version == nil {
-				svc.Version = &svc.Template
+			services[i].Version = &version
+			if services[i].Version == nil {
+				services[i].Version = &services[i].Template
 			}
 		}
 	}
@@ -644,12 +623,11 @@ func GetServiceSetWithOperation(
 	}
 	l.V(1).Info("Services after dependency filtering", "services", filteredServices)
 
-	if err := ResolveServiceVersions(ctx, c, templateNamespace, filteredServices); err != nil {
+	if err := fillServiceVersions(ctx, c, templateNamespace, filteredServices); err != nil {
 		return nil, kcmv1.ServiceSetOperationNone, fmt.Errorf("failed to resolve versions for filtered services: %w", err)
 	}
 
-	serviceSetServices := serviceSet.Spec.Services
-	if err := ResolveServiceVersions(ctx, c, templateNamespace, serviceSetServices); err != nil {
+	if err := fillServiceWithValueVersions(ctx, c, templateNamespace, serviceSet.Spec.Services); err != nil {
 		return nil, kcmv1.ServiceSetOperationNone, fmt.Errorf("failed to resolve versions for service set services: %w", err)
 	}
 
