@@ -34,6 +34,20 @@ import (
 	kubeutil "github.com/K0rdent/kcm/internal/util/kube"
 )
 
+type fakeFieldIndexer struct {
+	builder *fake.ClientBuilder
+}
+
+func (f *fakeFieldIndexer) IndexField(
+	_ context.Context,
+	obj client.Object,
+	field string,
+	extractValue client.IndexerFunc,
+) error {
+	f.builder.WithIndex(obj, field, extractValue)
+	return nil
+}
+
 func Test_GetServiceSetWithOperation(t *testing.T) {
 	ctx := context.Background()
 
@@ -45,6 +59,43 @@ func Test_GetServiceSetWithOperation(t *testing.T) {
 		Namespace: "default",
 	}
 
+	provider := &kcmv1.StateManagementProvider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ksm-projectsveltos",
+		},
+		Spec: kcmv1.StateManagementProviderSpec{
+			Selector: &metav1.LabelSelector{},
+		},
+		Status: kcmv1.StateManagementProviderStatus{
+			Ready: true,
+		},
+	}
+
+	template := &kcmv1.ServiceTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+	}
+
+	cd := &kcmv1.ClusterDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "default",
+		},
+		Spec: kcmv1.ClusterDeploymentSpec{
+			ServiceSpec: kcmv1.ServiceSpec{
+				Services: []kcmv1.Service{
+					{
+						Name:      "test-service",
+						Namespace: "default",
+						Template:  "test",
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name         string
 		existingObjs []client.Object
@@ -53,25 +104,50 @@ func Test_GetServiceSetWithOperation(t *testing.T) {
 		expectErr    bool
 	}{
 		{
-			name:         "serviceset not found -> create",
-			existingObjs: nil,
+			name: "serviceset not found -> create",
+			existingObjs: []client.Object{
+				provider,
+				template,
+			},
 			operationReq: OperationRequisites{
 				ObjectKey: key,
+				CD:        cd,
 			},
 			expectOp: kcmv1.ServiceSetOperationCreate,
 		},
 		{
 			name: "serviceset exists -> none",
 			existingObjs: []client.Object{
+				provider,
+				template,
 				&kcmv1.ServiceSet{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      key.Name,
 						Namespace: key.Namespace,
 					},
+					Spec: kcmv1.ServiceSetSpec{
+						Cluster: cd.Name,
+						Provider: kcmv1.StateManagementProviderConfig{
+							Config: &apiextv1.JSON{
+								Raw: []byte("{}"),
+							},
+							Name:           provider.Name,
+							SelfManagement: false,
+						},
+						Services: []kcmv1.ServiceWithValues{
+							{
+								Name:      cd.Spec.ServiceSpec.Services[0].Name,
+								Namespace: cd.Spec.ServiceSpec.Services[0].Namespace,
+								Template:  cd.Spec.ServiceSpec.Services[0].Template,
+								Version:   &cd.Spec.ServiceSpec.Services[0].Template,
+							},
+						},
+					},
 				},
 			},
 			operationReq: OperationRequisites{
 				ObjectKey: key,
+				CD:        cd,
 			},
 			expectOp: kcmv1.ServiceSetOperationNone,
 		},
@@ -83,7 +159,11 @@ func Test_GetServiceSetWithOperation(t *testing.T) {
 			if len(tt.existingObjs) > 0 {
 				builder = builder.WithObjects(tt.existingObjs...)
 			}
+			indexer := &fakeFieldIndexer{
+				builder: builder,
+			}
 
+			require.NoError(t, kcmv1.SetupFieldIndexers(ctx, indexer))
 			c := builder.Build()
 			serviceSet, op, err := GetServiceSetWithOperation(ctx, c, tt.operationReq)
 
@@ -112,7 +192,7 @@ func Test_FillServiceVersions(t *testing.T) {
 	tests := []struct {
 		name        string
 		templates   []runtime.Object
-		services    []*kcmv1.Service
+		services    []kcmv1.Service
 		expectErr   bool
 		expectedVer string
 	}{
@@ -129,7 +209,7 @@ func Test_FillServiceVersions(t *testing.T) {
 					},
 				},
 			},
-			services: []*kcmv1.Service{
+			services: []kcmv1.Service{
 				{
 					Template: "tmpl1",
 				},
@@ -153,7 +233,7 @@ func Test_FillServiceVersions(t *testing.T) {
 					},
 				},
 			},
-			services: []*kcmv1.Service{
+			services: []kcmv1.Service{
 				{
 					Template: "tmpl2",
 				},
@@ -170,7 +250,7 @@ func Test_FillServiceVersions(t *testing.T) {
 					},
 				},
 			},
-			services: []*kcmv1.Service{
+			services: []kcmv1.Service{
 				{
 					Template: "tmpl3",
 				},
@@ -180,7 +260,7 @@ func Test_FillServiceVersions(t *testing.T) {
 		{
 			name:      "already has version",
 			templates: []runtime.Object{},
-			services: []*kcmv1.Service{
+			services: []kcmv1.Service{
 				{
 					Version:  "existing",
 					Template: "tmpl4",
@@ -191,7 +271,7 @@ func Test_FillServiceVersions(t *testing.T) {
 		{
 			name:      "template not found",
 			templates: []runtime.Object{},
-			services: []*kcmv1.Service{
+			services: []kcmv1.Service{
 				{
 					Template: "missing",
 				},

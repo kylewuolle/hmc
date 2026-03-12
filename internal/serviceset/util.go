@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 
+	"github.com/Masterminds/semver/v3"
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -482,6 +484,36 @@ func ServicesToDeploy(
 	return services
 }
 
+func normalizeVersion(v string) string {
+	versionRegex := regexp.MustCompile(`\d+\.\d+\.\d+|\d+-\d+-\d+`)
+	m := versionRegex.FindStringSubmatch(v)
+	if len(m) != 4 {
+		return ""
+	}
+	return m[1] + "." + m[2] + "." + m[3]
+}
+
+func isUpgradeAvailable(current, desired string) bool {
+	cur := normalizeVersion(current)
+	des := normalizeVersion(desired)
+
+	if cur == "" || des == "" {
+		return false
+	}
+
+	curVer, err := semver.NewVersion(cur)
+	if err != nil {
+		return false
+	}
+
+	desVer, err := semver.NewVersion(des)
+	if err != nil {
+		return false
+	}
+
+	return curVer.GreaterThan(desVer)
+}
+
 func servicesToBeUpdated(
 	serviceSet *kcmv1.ServiceSet,
 	desiredServices []kcmv1.Service,
@@ -498,7 +530,7 @@ func servicesToBeUpdated(
 		key := client.ObjectKey{Namespace: effectiveServiceNs, Name: svc.Name}
 		desiredVersion := desiredServiceVersions[key]
 		// check upgrade availability
-		upgradeAvailable[key] = svc.Version != nil && desiredVersion < *svc.Version ||
+		upgradeAvailable[key] = svc.Version != nil && isUpgradeAvailable(*svc.Version, desiredVersion) ||
 			desiredVersionInUpgradePaths(upgradePaths, svc, desiredVersion)
 		for _, serviceState := range serviceSet.Status.Services {
 			if serviceState.State == kcmv1.ServiceStateDeployed &&
@@ -608,6 +640,10 @@ func GetServiceSetWithOperation(
 		return nil, kcmv1.ServiceSetOperationNone, fmt.Errorf("failed to get ServiceSet %s: %w", operationReq.ObjectKey, err)
 	}
 
+	// Save current spec before Build() overwrites it in place
+	// to compare spec and decide whether action is required.
+	existingSpec := serviceSet.Spec.DeepCopy()
+
 	templateNamespace := serviceSet.Namespace
 	upgradePaths, err := ServicesUpgradePaths(
 		ctx, c, ServicesWithDesiredChains(desiredServices, serviceSet.Spec.Services), templateNamespace)
@@ -634,10 +670,6 @@ func GetServiceSetWithOperation(
 	resultingServices := ServicesToDeploy(upgradePaths, filteredServices, serviceSet)
 	l.V(1).Info("Services to deploy", "services", resultingServices)
 
-	// Save current spec before Build() overwrites it in place
-	// to compare spec and decide whether action is required.
-	existingSpec := serviceSet.Spec
-
 	candidate, err := NewBuilder(operationReq.CD, serviceSet, provider.Spec.Selector).
 		WithMultiClusterService(operationReq.MCS).
 		WithServicesToDeploy(resultingServices).Build()
@@ -645,7 +677,7 @@ func GetServiceSetWithOperation(
 		return nil, kcmv1.ServiceSetOperationNone, fmt.Errorf("failed to build ServiceSet: %w", err)
 	}
 
-	if op == kcmv1.ServiceSetOperationUpdate && equality.Semantic.DeepEqual(existingSpec, candidate.Spec) {
+	if op == kcmv1.ServiceSetOperationUpdate && equality.Semantic.DeepEqual(existingSpec, &candidate.Spec) {
 		l.V(1).Info("No actions required, ServiceSet is up to date", "operation", kcmv1.ServiceSetOperationNone)
 		return serviceSet, kcmv1.ServiceSetOperationNone, nil
 	}
