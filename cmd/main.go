@@ -70,6 +70,7 @@ type config struct {
 	enableSveltosExpireCtrl       bool
 	createManagement              bool
 	fluxEnabled                   bool
+	cleanupCRDs                   bool
 }
 
 var (
@@ -107,6 +108,7 @@ func main() {
 		defaultHelmTimeout            time.Duration
 		maxConcurrentReconciles       int
 		fluxEnabled                   bool
+		cleanupCRDs                   bool
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -148,6 +150,7 @@ func main() {
 	flag.DurationVar(&defaultHelmTimeout, "default-helm-timeout", 0, "Specifies the timeout duration for Helm install or upgrade operations. If unset, Flux’s default value will be used")
 	flag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", 10, "Specifies the maximum number of concurrent reconciles that will be run for each controller.")
 	flag.BoolVar(&fluxEnabled, "flux-enabled", true, "The flag that indicates whether Flux integration is enabled")
+	flag.BoolVar(&cleanupCRDs, "cleanup-crds", false, "The flag that indicates whether installed CRDs should be cleaned up after removal")
 
 	// TODO: remove in one of the upcoming releases
 	_ = flag.Bool("enable-telemetry", false, "[Deprecated] Has no effect, use a dedicated telemetry chart")
@@ -279,6 +282,7 @@ func main() {
 		enableSveltosExpireCtrl:       enableSveltosExpireCtrl,
 		defaultHelmTimeout:            defaultHelmTimeout,
 		fluxEnabled:                   fluxEnabled,
+		cleanupCRDs:                   cleanupCRDs,
 	}
 	if err := setupControllers(mgr, systemNamespace, cfg); err != nil {
 		setupLog.Error(err, "failed to setup controllers")

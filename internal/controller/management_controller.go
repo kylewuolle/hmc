@@ -30,6 +30,7 @@ import (
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -77,7 +78,7 @@ type ManagementReconciler struct {
 	IsDisabledValidationWH bool // is webhook disabled set via the controller flags
 
 	sveltosDependentControllersStarted bool
-}
+	CleanupCRDs                        bool
 
 const cldRegSecretName string = "cld-registry-credentials"
 
@@ -601,6 +602,13 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
 	}
 
+	if r.CleanupCRDs {
+		requeue, err = r.removeCRDs(ctx)
+		if err != nil || requeue {
+			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+		}
+	}
+
 	r.eventf(management, "RemovedManagement", "All KCM management components were removed")
 
 	// Removing finalizer in the end of cleanup
@@ -973,4 +981,39 @@ func (*ManagementReconciler) eventf(mgmt *kcmv1.Management, reason, message stri
 // TODO: FIXME: pass meaningful non-empty action
 func (*ManagementReconciler) warnf(mgmt *kcmv1.Management, reason, message string, args ...any) {
 	record.Warnf(mgmt, nil, reason, "Reconcile", message, args...)
+}
+
+func (r *ManagementReconciler) removeCRDs(ctx context.Context) (bool, error) {
+	l := ctrl.LoggerFrom(ctx)
+	l.Info("Ensuring all CRDs owned by KCM are removed")
+
+	var crdList apiextv1.CustomResourceDefinitionList
+	if err := r.Client.List(ctx, &crdList); err != nil {
+		return true, err
+	}
+
+	for _, crd := range crdList.Items {
+		ann := crd.GetAnnotations()
+		if ann == nil {
+			continue
+		}
+
+		if ann["meta.helm.sh/release-name"] != kcmv1.CoreKCMName {
+			continue
+		}
+
+		if ann["meta.helm.sh/release-namespace"] != r.SystemNamespace {
+			continue
+		}
+
+		l.Info("Deleting CRD installed by Helm release", "crd", crd.Name)
+
+		err := r.Client.Delete(ctx, &crd)
+		if err != nil && !apierrors.IsNotFound(err) {
+			l.Error(err, "Failed deleting CRD", "crd", crd.Name)
+			return true, err
+		}
+	}
+
+	return false, nil
 }
