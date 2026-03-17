@@ -286,7 +286,6 @@ func main() {
 		defaultHelmTimeout:            defaultHelmTimeout,
 		capiClusterPollInterval:       capiClusterPollInterval,
 		fluxEnabled:                   fluxEnabled,
-		cleanupCRDs:                   cleanupCRDs,
 	}
 	if err := setupControllers(mgr, systemNamespace, cfg); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
