@@ -42,6 +42,11 @@ type ManagementSpec struct {
 	// Release references the Release object.
 	Release string `json:"release"`
 
+	// + optional
+
+	// CleanupCRD is a flag that indicates whether installed CRDs should be removed when a management is deleted
+	CleanupCRD *bool `json:"cleanupCRD,omitempty"`
+
 	// ComponentsCommonSpec defines the desired state of management components.
 	ComponentsCommonSpec `json:",inline"`
 }
