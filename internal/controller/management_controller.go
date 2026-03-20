@@ -575,14 +575,6 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 	}
 	r.eventf(management, "RemovingManagement", "Removing KCM management components")
 
-	var crdList map[string]struct{}
-	if management.Spec.CleanupCRD != nil && *management.Spec.CleanupCRD {
-		var err error
-		if crdList, err = r.extractCRDs(ctx); err != nil {
-			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
-		}
-	}
-
 	requeue, err := r.removeHelmReleases(ctx, kcmv1.CoreKCMName, listOpts)
 	if err != nil {
 		l.Error(err, "deleting helm releases")
@@ -610,13 +602,13 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
 	}
 
-	if management.Spec.CleanupCRD != nil && *management.Spec.CleanupCRD {
-		requeue, err = r.removeCRDs(ctx, crdList)
-		if err != nil || requeue {
-			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
-		}
+	if management.Spec.CleanupCRDs {
+		requeue, err = r.removeCRDs(ctx)
 	}
 
+	if err != nil || requeue {
+		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+	}
 	r.eventf(management, "RemovedManagement", "All KCM management components were removed")
 
 	// Removing finalizer in the end of cleanup
