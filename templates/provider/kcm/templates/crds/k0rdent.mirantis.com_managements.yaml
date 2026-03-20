@@ -56,8 +56,8 @@ spec:
             spec:
               description: ManagementSpec defines the desired state of Management
               properties:
-                cleanupCRD:
-                  description: CleanupCRD is a flag that indicates whether installed CRDs should be removed when a management is deleted
+                cleanupCRDs:
+                  description: CleanupCRDs is a flag that indicates whether installed CRDs should be removed when a management is deleted
                   type: boolean
                 core:
                   description: |-
