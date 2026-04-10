@@ -229,8 +229,7 @@ func (p *ProviderValidator) Validate(ctx context.Context, kc *kubeclient.KubeCli
 		if err := validator(ctx, kc, p.clusterName); err != nil {
 			_, _ = fmt.Fprintf(GinkgoWriter, "[%s/%s] validation error: %v\n", p.templateType, name, err)
 
-			var thresholdErr *ThresholdError
-			if errors.As(err, &thresholdErr) {
+			if thresholdErr, ok := errors.AsType[*ThresholdError](err); ok {
 				if firstSeen, ok := p.thresholdFirstSeen[name]; !ok {
 					p.thresholdFirstSeen[name] = time.Now()
 				} else if time.Since(firstSeen) > thresholdErr.Threshold {
