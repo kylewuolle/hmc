@@ -737,21 +737,21 @@ func startWatchingServiceSetVersions(
 func setK0smotronNodePorts(sd *kcmv1.ClusterDeployment, apiPort, konnectivityPort int) {
 	GinkgoHelper()
 
-	var cfg map[string]interface{}
+	var cfg map[string]any
 	if sd.Spec.Config != nil {
 		Expect(json.Unmarshal(sd.Spec.Config.Raw, &cfg)).To(Succeed())
 	}
 	if cfg == nil {
-		cfg = make(map[string]interface{})
+		cfg = make(map[string]any)
 	}
 
-	k0smotronCfg, _ := cfg["k0smotron"].(map[string]interface{})
-	if k0smotronCfg == nil {
-		k0smotronCfg = make(map[string]interface{})
+	k0smotronCfg, ok := cfg["k0smotron"].(map[string]any)
+	if !ok || k0smotronCfg == nil {
+		k0smotronCfg = make(map[string]any)
 	}
-	serviceCfg, _ := k0smotronCfg["service"].(map[string]interface{})
-	if serviceCfg == nil {
-		serviceCfg = map[string]interface{}{"type": "NodePort"}
+	serviceCfg, ok := k0smotronCfg["service"].(map[string]any)
+	if !ok || serviceCfg == nil {
+		serviceCfg = map[string]any{"type": "NodePort"}
 	}
 	serviceCfg["apiPort"] = apiPort
 	serviceCfg["konnectivityPort"] = konnectivityPort
@@ -761,39 +761,4 @@ func setK0smotronNodePorts(sd *kcmv1.ClusterDeployment, apiPort, konnectivityPor
 	configBytes, err := json.Marshal(cfg)
 	Expect(err).NotTo(HaveOccurred())
 	sd.Spec.Config = &apiextv1.JSON{Raw: configBytes}
-}
-
-func waitForSveltosResourcesDeleted(ctx context.Context, kc *kubeclient.KubeClient, clusterName string) {
-	GinkgoHelper()
-	Eventually(func() error {
-		ssList := &kcmv1.ServiceSetList{}
-		By(fmt.Sprintf("List servicesets for cluster:%s\n", clusterName))
-		if err := kc.CrClient.List(ctx, ssList, crclient.InNamespace(kc.Namespace),
-			crclient.MatchingLabels{kubeutil.DefaultStateManagementProviderSelectorKey: kubeutil.DefaultStateManagementProviderSelectorValue}); err != nil {
-			return err
-		}
-		if len(ssList.Items) > 0 {
-			return fmt.Errorf("found %d ServiceSet CR(s) for cluster %q", len(ssList.Items), clusterName)
-		}
-
-		By(fmt.Sprintf("List profile for cluster:%s\n", clusterName))
-		profileList := &addoncontrollerv1beta1.ProfileList{}
-		if err := kc.CrClient.List(ctx, profileList, crclient.InNamespace(kc.Namespace), crclient.MatchingLabels{kcmv1.KCMManagedLabelKey: kcmv1.KCMManagedLabelValue}); err != nil {
-			return err
-		}
-		if len(profileList.Items) > 0 {
-			return fmt.Errorf("found %d Profile CR(s) for cluster %q", len(profileList.Items), clusterName)
-		}
-
-		By(fmt.Sprintf("List ClusterSummaries for cluster:%s\n", clusterName))
-		clusterSummaryList := &addoncontrollerv1beta1.ClusterSummaryList{}
-		if err := kc.CrClient.List(ctx, clusterSummaryList, crclient.InNamespace(kc.Namespace)); err != nil {
-			return err
-		}
-		if len(clusterSummaryList.Items) > 0 {
-			return fmt.Errorf("found %d ClusterSummary CR(s) for cluster %q", len(clusterSummaryList.Items), clusterName)
-		}
-
-		return nil
-	}, 10*time.Minute, 15*time.Second).Should(Succeed())
 }
