@@ -77,8 +77,6 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 		}
 	})
 
-	const pollInterval = 5 * time.Second
-
 	for i, testingConfig := range config.Config[config.TestingProviderOpenstack] {
 		It(fmt.Sprintf("Verifying OpenStack cluster deployment. Iteration: %d", i), func() {
 			defer GinkgoRecover()
@@ -111,7 +109,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 				)
 				Eventually(func() error {
 					return deletionValidator.Validate(context.Background(), kc)
-				}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				return nil
 			})
 
@@ -124,7 +122,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 			templateBy(sdTemplateType, "waiting for infrastructure provider to deploy successfully")
 			Eventually(func() error {
 				return deploymentValidator.Validate(context.Background(), kc)
-			}).WithTimeout(90 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+			}).WithTimeout(90 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 			if !testingConfig.Upgrade && testingConfig.Hosted == nil {
 				return
@@ -154,7 +152,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted.Upgrade {
 					By("installing stable templates for further hosted upgrade testing")
@@ -169,7 +167,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				// Provide credentials to the standalone cluster
 				credential.Apply(kubeCfgPath, "openstack")
@@ -202,7 +200,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 					)
 					Eventually(func() error {
 						return deletionValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 					return nil
 				})
 
@@ -217,7 +215,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 				)
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 
 			if testingConfig.Upgrade {
@@ -233,12 +231,12 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted != nil {
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
 			if testingConfig.Hosted != nil && testingConfig.Hosted.Upgrade {
@@ -257,7 +255,7 @@ var _ = Context("OpenStack Templates", Label("provider:onprem", "provider:openst
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 		})
 	}

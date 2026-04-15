@@ -51,21 +51,6 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 
 		By("Creating kube client")
 		kc = kubeclient.NewFromLocal(kubeutil.DefaultSystemNamespace)
-
-		By("Providing cluster identity and credentials")
-		// Determine which credential types are needed across all config iterations and apply them once.
-		credentialTypes := map[string]struct{}{}
-		for _, cfg := range config.Config[config.TestingProviderAzure] {
-			cfg.SetDefaults(clusterTemplates, config.TestingProviderAzure)
-			if templates.GetType(cfg.Template) == templates.TemplateAzureAKS {
-				credentialTypes["aks"] = struct{}{}
-			} else {
-				credentialTypes["azure"] = struct{}{}
-			}
-		}
-		for provider := range credentialTypes {
-			credential.Apply("", provider)
-		}
 	})
 
 	AfterAll(func() {
@@ -92,8 +77,6 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 		}
 	})
 
-	const pollInterval = 5 * time.Second
-
 	for i, testingConfig := range config.Config[config.TestingProviderAzure] {
 		It(fmt.Sprintf("Verifying Azure cluster deployment. Iteration: %d", i), func() {
 			defer GinkgoRecover()
@@ -104,6 +87,13 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 			sdName := clusterdeployment.GenerateClusterName(fmt.Sprintf("azure-%d", i))
 			sdTemplate := testingConfig.Template
 			sdTemplateType := templates.GetType(sdTemplate)
+
+			By("Providing cluster identity and credentials")
+			provider := "azure"
+			if sdTemplateType == templates.TemplateAzureAKS {
+				provider = "aks"
+			}
+			credential.Apply("", provider)
 
 			// Supported architectures for Azure standalone deployment: amd64, arm64
 			Expect(testingConfig.Architecture).To(SatisfyAny(
@@ -133,7 +123,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				return nil
 			})
 
@@ -147,7 +137,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 			templateBy(sdTemplateType, "waiting for infrastructure provider to deploy successfully")
 			Eventually(func() error {
 				return deploymentValidator.Validate(context.Background(), kc)
-			}).WithTimeout(90 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+			}).WithTimeout(90 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 			if !testingConfig.Upgrade && testingConfig.Hosted == nil {
 				return
@@ -180,7 +170,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted.Upgrade {
 					By("installing stable templates for further hosted upgrade testing")
@@ -196,7 +186,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				By("Create azure credential secret")
 				credential.Apply(kubeCfgPath, "azure")
@@ -233,7 +223,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 					)
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 					return nil
 				})
 
@@ -249,7 +239,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 
 			if testingConfig.Upgrade {
@@ -265,13 +255,13 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted != nil {
 					// Validate hosted deployment after the standalone upgrade
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
 			if testingConfig.Hosted != nil && testingConfig.Hosted.Upgrade {
@@ -290,7 +280,7 @@ var _ = Context("Azure Templates", Label("provider:cloud", "provider:azure"), Or
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 		})
 	}

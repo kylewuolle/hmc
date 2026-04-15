@@ -80,8 +80,6 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 		}
 	})
 
-	const pollInterval = 5 * time.Second
-
 	for i, testingConfig := range config.Config[config.TestingProviderGCP] {
 		It(fmt.Sprintf("Verifying GCP cluster deployment. Iteration: %d", i), func() {
 			defer GinkgoRecover()
@@ -128,7 +126,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				return nil
 			})
 
@@ -143,7 +141,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 			templateBy(sdTemplateType, "waiting for infrastructure provider to deploy successfully")
 			Eventually(func() error {
 				return deploymentValidator.Validate(context.Background(), kc)
-			}).WithTimeout(90 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+			}).WithTimeout(90 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 			if !testingConfig.Upgrade && testingConfig.Hosted == nil {
 				return
@@ -173,7 +171,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted.Upgrade {
 					By("installing stable templates for further hosted upgrade testing")
@@ -189,7 +187,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				// Supported architectures for GCP hosted deployment: amd64, arm64
 				Expect(testingConfig.Hosted.Architecture).To(SatisfyAny(
@@ -224,7 +222,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 					)
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 					return nil
 				})
 
@@ -238,7 +236,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 
 			if testingConfig.Upgrade {
@@ -254,13 +252,13 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted != nil {
 					// Validate hosted deployment after the standalone upgrade
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
 
@@ -280,7 +278,7 @@ var _ = Context("GCP Templates", Label("provider:cloud", "provider:gcp"), Ordere
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 		})
 	}

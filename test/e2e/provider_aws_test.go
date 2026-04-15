@@ -140,8 +140,6 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 		}
 	})
 
-	const pollInterval = 5 * time.Second
-
 	for i, testingConfig := range config.Config[config.TestingProviderAWS] {
 		It(fmt.Sprintf("Verifying AWS cluster deployment. Iteration: %d", i), func() {
 			defer GinkgoRecover()
@@ -201,7 +199,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 
 			Eventually(func() error {
 				return deploymentValidator.Validate(context.Background(), kc)
-			}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+			}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 			// validating service included in the cluster deployment is deployed
 			if len(sd.Spec.ServiceSpec.Services) > 0 {
@@ -224,7 +222,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 						})
 					Eventually(func() error {
 						return serviceDeployedValidator.Validate(context.Background(), kc)
-					}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
 
@@ -268,7 +266,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted.Upgrade {
 					By("installing stable templates for further hosted upgrade testing")
@@ -284,7 +282,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 						return err
 					}
 					return nil
-				}).WithTimeout(15 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				// Ensure AWS credentials are set in the standalone cluster.
 				credential.Apply(kubeCfgPath, "aws")
@@ -319,7 +317,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 					)
 					Eventually(func() error {
 						return deletionValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(10 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 					return nil
 				})
 
@@ -335,7 +333,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 				)
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 
 			if testingConfig.Upgrade {
@@ -351,13 +349,13 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), kc)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 
 				if testingConfig.Hosted != nil {
 					// Validate hosted deployment after the standalone upgrade
 					Eventually(func() error {
 						return deploymentValidator.Validate(context.Background(), standaloneClient)
-					}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+					}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 				}
 			}
 			if testingConfig.Hosted != nil && testingConfig.Hosted.Upgrade {
@@ -376,7 +374,7 @@ var _ = Describe("AWS Templates", Label("provider:cloud", "provider:aws"), Order
 
 				Eventually(func() error {
 					return deploymentValidator.Validate(context.Background(), standaloneClient)
-				}).WithTimeout(30 * time.Minute).WithPolling(pollInterval).Should(Succeed())
+				}).WithTimeout(30 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
 			}
 		})
 	}

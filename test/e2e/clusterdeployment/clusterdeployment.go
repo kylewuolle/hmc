@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	clusterapiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -97,6 +98,20 @@ var remoteClusterDeploymentTemplateBytes []byte
 
 //go:embed resources/docker-standalone-cp.tpl
 var dockerClusterDeploymentTemplateBytes []byte
+
+func FilterAllProviders() []string {
+	return []string{
+		KCMControllerLabel,
+		GetProviderLabel(ProviderAWS),
+		GetProviderLabel(ProviderAzure),
+		GetProviderLabel(ProviderCAPI),
+		GetProviderLabel(ProviderVSphere),
+	}
+}
+
+func GetProviderLabel(provider ProviderType) string {
+	return fmt.Sprintf("%s=%s", clusterapiv1.ProviderNameLabel, provider)
+}
 
 func GenerateClusterName(postfix string) string {
 	mcPrefix := os.Getenv(EnvVarClusterDeploymentPrefix)
@@ -205,7 +220,7 @@ func Create(ctx context.Context, cl crclient.Client, clusterDeployment *kcmv1.Cl
 			logs.WarnErrorf(err, "failed to create ClusterDeployment")
 		}
 		return err
-	}, 1*time.Minute, 5*time.Second).Should(Succeed())
+	}, 1*time.Minute, 10*time.Second).Should(Succeed())
 
 	return func() error {
 		if err := cl.Delete(ctx, clusterDeployment); crclient.IgnoreNotFound(err) != nil {
@@ -215,7 +230,7 @@ func Create(ctx context.Context, cl crclient.Client, clusterDeployment *kcmv1.Cl
 			cld := &kcmv1.ClusterDeployment{}
 			err := cl.Get(ctx, crclient.ObjectKeyFromObject(clusterDeployment), cld)
 			return apierrors.IsNotFound(err)
-		}, 30*time.Minute, 5*time.Second).Should(BeTrue())
+		}, 30*time.Minute, 1*time.Minute).Should(BeTrue())
 		return nil
 	}
 }
@@ -230,7 +245,7 @@ func Update(ctx context.Context, cl crclient.Client, clusterDeployment *kcmv1.Cl
 			logs.WarnErrorf(err, "failed to update ClusterDeployment")
 		}
 		return err
-	}, 1*time.Minute, 5*time.Second).Should(Succeed())
+	}, 1*time.Minute, 10*time.Second).Should(Succeed())
 }
 
 func ValidateDeploymentVars(v []string) {
