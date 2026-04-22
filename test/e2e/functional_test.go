@@ -45,16 +45,17 @@ import (
 )
 
 const (
-	helmRepositoryName   = "k0rdent-catalog"
-	templateChainName    = "ingress-nginx"
-	nginxChartName       = "ingress-nginx"
-	openCostChartName    = "opencost"
-	openCostChartVersion = "2.3.2"
-	openWebuiChartName   = "open-webui"
-	openWebuiVersion     = "8.10.0"
-	nginxServiceName     = "managed-ingress-nginx"
-	validatorTimeout     = 30 * time.Minute
-	validatorPoll        = 10 * time.Second
+	helmRepositoryName         = "k0rdent-catalog"
+	templateChainName          = "ingress-nginx"
+	branchingTemplateChainName = "ingress-nginx-branching"
+	nginxChartName             = "ingress-nginx"
+	openCostChartName          = "opencost"
+	openCostChartVersion       = "2.3.2"
+	openWebuiChartName         = "open-webui"
+	openWebuiVersion           = "8.10.0"
+	nginxServiceName           = "managed-ingress-nginx"
+	validatorTimeout           = 30 * time.Minute
+	validatorPoll              = 10 * time.Second
 )
 
 var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docker"), Ordered, ContinueOnFailure, func() {
@@ -151,6 +152,31 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 		templates.CreateTemplateChain(context.Background(), kc.CrClient, kubeutil.DefaultSystemNamespace, templateChainName, kcmv1.TemplateChainSpec{
 			SupportedTemplates: supportedTemplates,
 		})
+
+		branchingChain := kcmv1.TemplateChainSpec{
+			SupportedTemplates: []kcmv1.SupportedTemplate{
+				{
+					Name: fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(nginxVersions[0], ".", "-")),
+					AvailableUpgrades: []kcmv1.AvailableUpgrade{
+						{
+							Name:    fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(nginxVersions[1], ".", "-")),
+							Version: nginxVersions[1],
+						},
+						{
+							Name:    fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(nginxVersions[2], ".", "-")),
+							Version: nginxVersions[2],
+						},
+					},
+				},
+				{
+					Name: fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(nginxVersions[1], ".", "-")),
+				},
+				{
+					Name: fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(nginxVersions[2], ".", "-")),
+				},
+			},
+		}
+		templates.CreateTemplateChain(context.Background(), kc.CrClient, kubeutil.DefaultSystemNamespace, branchingTemplateChainName, branchingChain)
 	})
 
 	AfterEach(func() {
@@ -221,17 +247,21 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 
 			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services)
 
+			watcher := newServiceSetWatcher(ctx, kc)
+			defer watcher.Stop()
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[2])
 
 			expectedVersions := []string{
 				nginxVersions[1],
 				nginxVersions[2],
 			}
-			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions)
+			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions, watcher)
 
+			watcher = newServiceSetWatcher(ctx, kc)
+			defer watcher.Stop()
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[0])
 			expectedVersions = []string{nginxVersions[0]}
-			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions)
+			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions, watcher)
 
 			serviceSet := &kcmv1.ServiceSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -294,13 +324,15 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 			Eventually(func() error { return deployValidator.Validate(ctx, kc) }, validatorTimeout, validatorPoll).Should(Succeed())
 
 			waitForServiceDeployments(ctx, kc, sd, sd.Spec.ServiceSpec.Services)
+			watcher := newServiceSetWatcher(ctx, kc)
+			defer watcher.Stop()
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[2])
 
 			expectedVersions := []string{
 				nginxVersions[1],
 				nginxVersions[2],
 			}
-			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions)
+			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions, watcher)
 
 			serviceSet := &kcmv1.ServiceSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -311,12 +343,70 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 			Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(serviceSet), serviceSet)).NotTo(HaveOccurred(), "failed to fetch ServiceSet")
 			Expect(serviceSet.Spec.Services).To(HaveLen(3))
 
+			watcher = newServiceSetWatcher(ctx, kc)
+			defer watcher.Stop()
 			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[0])
 			expectedVersions = []string{nginxVersions[0]}
-			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions)
+			waitForServiceSetVersions(ctx, kc, sd.Name, sd.Namespace, expectedVersions, watcher)
 
 			Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(serviceSet), serviceSet)).NotTo(HaveOccurred(), "failed to fetch ServiceSet")
 			Expect(serviceSet.Spec.Services).To(HaveLen(3))
+
+			By("Switching nginx to the branching chain to test dead-end branch handling (issue #2613)")
+			Eventually(func() error {
+				Expect(kc.CrClient.Get(ctx, crclient.ObjectKeyFromObject(sd), sd)).NotTo(HaveOccurred())
+				for j, svc := range sd.Spec.ServiceSpec.Services {
+					if svc.Name == nginxServiceName {
+						sd.Spec.ServiceSpec.Services[j].TemplateChain = branchingTemplateChainName
+					}
+				}
+				return kc.CrClient.Update(ctx, sd)
+			}, 1*time.Minute, 10*time.Second).Should(Succeed())
+
+			watcher = newServiceSetWatcher(ctx, kc)
+			defer watcher.Stop()
+
+			By(fmt.Sprintf("Requesting upgrade from %s (A) to %s (C), bypassing dead-end %s (B)",
+				nginxVersions[0], nginxVersions[2], nginxVersions[1]))
+			updateClusterDeploymentTemplate(ctx, sd, nginxVersions[2])
+
+			seenSpecVersions := map[string]bool{}
+			Eventually(func() error {
+				for event := range watcher.ResultChan() {
+					obj, ok := event.Object.(*unstructured.Unstructured)
+					if !ok || obj == nil {
+						continue
+					}
+					if event.Type != watch.Modified {
+						continue
+					}
+
+					var svcSet kcmv1.ServiceSet
+					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svcSet); err != nil {
+						return fmt.Errorf("failed to convert ServiceSet: %w", err)
+					}
+
+					for _, svc := range svcSet.Spec.Services {
+						if svc.Name == nginxServiceName && svc.Version != nil {
+							seenSpecVersions[*svc.Version] = true
+						}
+					}
+
+					for _, svc := range svcSet.Status.Services {
+						if svc.Name == nginxServiceName &&
+							svc.State == kcmv1.ServiceStateDeployed &&
+							svc.Version != nil && *svc.Version == nginxVersions[2] {
+							return nil
+						}
+					}
+				}
+				return fmt.Errorf("nginx service not yet deployed at version %s", nginxVersions[2])
+			}, validatorTimeout, 2*time.Second).Should(Succeed())
+
+			Expect(seenSpecVersions).NotTo(HaveKey(nginxVersions[1]),
+				"upgrade routed through dead-end branch %s (B); expected direct upgrade from %s (A) to %s (C) — this is the bug described in issue #2613",
+				nginxVersions[1], nginxVersions[0], nginxVersions[2])
+
 			Expect(clusterDeleteFunc()).Error().NotTo(HaveOccurred(), "failed to delete cluster")
 			clusterDeleteFunc = nil
 		})
@@ -622,6 +712,13 @@ func waitForServiceDeployments(
 				continue
 			}
 
+			if serviceState.Template != services[i].Template {
+				logs.Printf("Service %s deployed at template %s (want %s), waiting for re-deploy",
+					services[i].Name, serviceState.Template, services[i].Template)
+				return fmt.Errorf("service %s deployed at template %s (want %s)",
+					services[i].Name, serviceState.Template, services[i].Template)
+			}
+
 			if serviceState.State != kcmv1.ServiceStateDeployed {
 				logs.Printf("Service %s in %s state: %s", services[i].Name, serviceState.State, serviceState.FailureMessage)
 				return fmt.Errorf("service %s in %s state: %s", services[i].Name, serviceState.State, serviceState.FailureMessage)
@@ -635,6 +732,20 @@ func waitForServiceDeployments(
 	}, 10*time.Minute, 10*time.Second).Should(Succeed())
 }
 
+// newServiceSetWatcher creates a Kubernetes Watch on ServiceSet resources.
+func newServiceSetWatcher(ctx context.Context, kc *kubeclient.KubeClient) watch.Interface {
+	GinkgoHelper()
+	gvr := schema.GroupVersionResource{
+		Group:    "k0rdent.mirantis.com",
+		Version:  "v1beta1",
+		Resource: "servicesets",
+	}
+	dynClient := kc.GetDynamicClient(gvr, true)
+	watcher, err := dynClient.Watch(ctx, metav1.ListOptions{})
+	Expect(err).NotTo(HaveOccurred(), "failed to create watcher for ServiceSets")
+	return watcher
+}
+
 // waitForServiceSetVersions waits until the serviceset is updated with the given versions
 func waitForServiceSetVersions(
 	ctx context.Context,
@@ -642,22 +753,9 @@ func waitForServiceSetVersions(
 	clusterName,
 	clusterNamespace string,
 	versions []string,
+	watcher watch.Interface,
 ) {
-	gvr := schema.GroupVersionResource{
-		Group:    "k0rdent.mirantis.com",
-		Version:  "v1beta1",
-		Resource: "servicesets",
-	}
-
-	dynClient := kc.GetDynamicClient(gvr, true)
-
-	watcher, err := dynClient.Watch(ctx, metav1.ListOptions{})
-	defer func() {
-		if watcher != nil {
-			watcher.Stop()
-		}
-	}()
-	Expect(err).NotTo(HaveOccurred(), "failed to create watcher for ServiceSets")
+	defer watcher.Stop()
 
 	expectedVersions := map[string]bool{}
 	for _, v := range versions {
@@ -665,44 +763,52 @@ func waitForServiceSetVersions(
 	}
 
 	Eventually(func() error {
-		for event := range watcher.ResultChan() {
-			obj, ok := event.Object.(*unstructured.Unstructured)
-			if !ok || obj == nil {
-				continue
-			}
+		for {
+			select {
+			case event, ok := <-watcher.ResultChan():
+				if !ok {
+					return fmt.Errorf("watcher channel closed prematurely; not all versions observed: %+v", expectedVersions)
+				}
 
-			var svcSet kcmv1.ServiceSet
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svcSet)
-			Expect(err).NotTo(HaveOccurred(), "failed to convert unstructured to ServiceSet")
+				obj, ok := event.Object.(*unstructured.Unstructured)
+				if !ok || obj == nil {
+					continue
+				}
 
-			if event.Type != watch.Modified {
-				continue
-			}
+				var svcSet kcmv1.ServiceSet
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svcSet)
+				Expect(err).NotTo(HaveOccurred(), "failed to convert unstructured to ServiceSet")
 
-			for _, service := range svcSet.Spec.Services {
-				if service.Name == nginxServiceName {
-					version := *service.Version
-					By(fmt.Sprintf("Service %s/%s modified (version: %s)\n", svcSet.Namespace, svcSet.Name, version))
+				if event.Type != watch.Modified {
+					continue
+				}
 
-					if _, exists := expectedVersions[version]; exists {
-						expectedVersions[version] = true
-					}
+				for _, service := range svcSet.Spec.Services {
+					if service.Name == nginxServiceName {
+						version := *service.Version
+						By(fmt.Sprintf("Service %s/%s modified (version: %s)\n", svcSet.Namespace, svcSet.Name, version))
 
-					allSeen := true
-					for _, seen := range expectedVersions {
-						if !seen {
-							allSeen = false
-							break
+						if _, exists := expectedVersions[version]; exists {
+							expectedVersions[version] = true
+						}
+
+						allSeen := true
+						for _, seen := range expectedVersions {
+							if !seen {
+								allSeen = false
+								break
+							}
+						}
+
+						if allSeen {
+							return nil
 						}
 					}
-
-					if allSeen {
-						return nil
-					}
 				}
+			default:
+				return fmt.Errorf("not all expected versions observed: %+v", expectedVersions)
 			}
 		}
-		return fmt.Errorf("not all expected versions observed: %+v", expectedVersions)
 	}, 10*time.Minute, 100*time.Millisecond).Should(Succeed())
 
 	Eventually(func() error {

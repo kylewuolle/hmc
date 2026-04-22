@@ -15,6 +15,7 @@
 package serviceset
 
 import (
+	"strings"
 	"testing"
 
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
@@ -313,6 +314,77 @@ func Test_ServicesToDeploy(t *testing.T) {
 					ValuesFrom: []kcmv1.ValuesFrom{
 						{Kind: "ConfigMap", Name: "my-config"},
 					},
+				},
+			},
+		},
+		{
+			description: "multi-step-upgrade-stops-at-intermediate",
+			upgradePaths: []kcmv1.ServiceUpgradePaths{
+				{
+					Name:      "managed-ingress-nginx",
+					Namespace: "nginx",
+					Template:  "ingress-nginx-4-11-3",
+					AvailableUpgrades: []kcmv1.UpgradePath{
+						{
+							Versions: []kcmv1.AvailableUpgrade{
+								{Name: "ingress-nginx-4-11-5", Version: "4.11.5"},
+							},
+						},
+						{
+							Versions: []kcmv1.AvailableUpgrade{
+								{Name: "ingress-nginx-4-11-5", Version: "4.11.5"},
+								{Name: "ingress-nginx-4-12-3", Version: "4.12.3"},
+							},
+						},
+						{
+							Versions: []kcmv1.AvailableUpgrade{
+								{Name: "ingress-nginx-4-11-5", Version: "4.11.5"},
+								{Name: "ingress-nginx-4-12-3", Version: "4.12.3"},
+								{Name: "ingress-nginx-4-13-0", Version: "4.13.0"},
+							},
+						},
+					},
+				},
+			},
+			// User has updated the CD to request the jump directly to 4.12.3.
+			desiredServices: []kcmv1.Service{
+				{
+					Name:      "managed-ingress-nginx",
+					Namespace: "nginx",
+					Template:  "ingress-nginx-4-12-3",
+					Version:   "4.12.3",
+				},
+			},
+			// ServiceSet reflects the currently running 4.11.3 (spec and status agree).
+			deployedServices: &kcmv1.ServiceSet{
+				Status: kcmv1.ServiceSetStatus{
+					Services: []kcmv1.ServiceState{
+						{
+							State:     kcmv1.ServiceStateDeployed,
+							Name:      "managed-ingress-nginx",
+							Namespace: "nginx",
+							Version:   new("4.11.3"),
+						},
+					},
+				},
+				Spec: kcmv1.ServiceSetSpec{
+					Services: []kcmv1.ServiceWithValues{
+						{
+							Name:      "managed-ingress-nginx",
+							Namespace: "nginx",
+							Template:  "ingress-nginx-4-11-3",
+							Version:   new("4.11.3"),
+						},
+					},
+				},
+			},
+			// Must stop at 4.11.5, NOT jump to 4.12.3.
+			expectedServices: []kcmv1.ServiceWithValues{
+				{
+					Name:      "managed-ingress-nginx",
+					Namespace: "nginx",
+					Template:  "ingress-nginx-4-11-5",
+					Version:   new("4.11.5"),
 				},
 			},
 		},
@@ -1348,6 +1420,189 @@ func Test_GetServiceSetWithOperation_NoSpuriousUpdates(t *testing.T) {
 	}
 }
 
+func Test_GetServiceSetWithOperation_SequentialUpgrade(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(kcmv1.AddToScheme(scheme))
+
+	const (
+		ns            = "kcm-system"
+		cdName        = "my-cluster"
+		providerName  = "sveltos"
+		svcName       = "managed-ingress-nginx"
+		svcNamespace  = "nginx"
+		chainName     = "ingress-nginx"
+	)
+
+	nginxVersions := []string{"4.11.3", "4.11.5", "4.12.3", "4.13.0"}
+	templateName := func(v string) string {
+		return "ingress-nginx-" + strings.ReplaceAll(v, ".", "-")
+	}
+
+	// ServiceTemplates for all four nginx versions.
+	var objects []client.Object
+	for _, v := range nginxVersions {
+		objects = append(objects, &kcmv1.ServiceTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: templateName(v), Namespace: ns},
+			Spec:       kcmv1.ServiceTemplateSpec{Version: v},
+		})
+	}
+
+	// ServiceTemplateChain: each version can upgrade to all later versions.
+	// This matches the functional_test.go BeforeAll chain construction exactly.
+	var supportedTemplates []kcmv1.SupportedTemplate
+	for i, v := range nginxVersions {
+		var upgrades []kcmv1.AvailableUpgrade
+		for _, nv := range nginxVersions[i+1:] {
+			upgrades = append(upgrades, kcmv1.AvailableUpgrade{
+				Name:    templateName(nv),
+				Version: nv,
+			})
+		}
+		supportedTemplates = append(supportedTemplates, kcmv1.SupportedTemplate{
+			Name:              templateName(v),
+			AvailableUpgrades: upgrades,
+		})
+	}
+	objects = append(objects, &kcmv1.ServiceTemplateChain{
+		ObjectMeta: metav1.ObjectMeta{Name: chainName, Namespace: ns},
+		Spec:       kcmv1.TemplateChainSpec{SupportedTemplates: supportedTemplates},
+	})
+
+	// StateManagementProvider (required by GetServiceSetWithOperation).
+	provider := &kcmv1.StateManagementProvider{
+		ObjectMeta: metav1.ObjectMeta{Name: providerName},
+		Spec: kcmv1.StateManagementProviderSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"provider": providerName},
+			},
+			Adapter: kcmv1.ResourceReference{
+				APIVersion: "v1", Kind: "Deployment",
+				Name: "sveltos-controller-manager", Namespace: ns,
+			},
+		},
+	}
+	objects = append(objects, provider)
+
+	// ClusterDeployment: user wants to jump from 4.11.3 → 4.12.3 directly.
+	// Version is intentionally left empty (mirrors how updateClusterDeploymentTemplate
+	// works: only Template is changed, Version stays empty).
+	cd := &kcmv1.ClusterDeployment{
+		ObjectMeta: metav1.ObjectMeta{Name: cdName, Namespace: ns},
+		Spec: kcmv1.ClusterDeploymentSpec{
+			Template:   "some-cluster-template",
+			Credential: "some-credential",
+			ServiceSpec: kcmv1.ServiceSpec{
+				Provider: kcmv1.StateManagementProviderConfig{Name: providerName},
+				Services: []kcmv1.Service{
+					{
+						Name:          svcName,
+						Namespace:     svcNamespace,
+						Template:      templateName(nginxVersions[2]), // "ingress-nginx-4-12-3"
+						TemplateChain: chainName,
+						// Version intentionally empty: filled by ResolveServiceVersions
+					},
+				},
+			},
+		},
+	}
+	objects = append(objects, cd)
+
+	// Existing ServiceSet: 4.11.3 is currently deployed (spec and status agree).
+	existingServiceSet := &kcmv1.ServiceSet{
+		ObjectMeta: metav1.ObjectMeta{Name: cdName, Namespace: ns},
+		Spec: kcmv1.ServiceSetSpec{
+			Cluster: cdName,
+			Services: []kcmv1.ServiceWithValues{
+				{
+					Name:      svcName,
+					Namespace: svcNamespace,
+					Template:  templateName(nginxVersions[0]), // "ingress-nginx-4-11-3"
+					Version:   new(nginxVersions[0]),           // ptr("4.11.3")
+				},
+			},
+		},
+		Status: kcmv1.ServiceSetStatus{
+			Services: []kcmv1.ServiceState{
+				{
+					State:     kcmv1.ServiceStateDeployed,
+					Name:      svcName,
+					Namespace: svcNamespace,
+					Version:   new(nginxVersions[0]), // ptr("4.11.3")
+				},
+			},
+		},
+	}
+	objects = append(objects, existingServiceSet)
+
+	cl := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objects...).
+		WithStatusSubresource(&kcmv1.ServiceSet{}).
+		WithIndex(&kcmv1.ServiceSet{}, kcmv1.ServiceSetClusterIndexKey, kcmv1.ExtractServiceSetCluster).
+		WithIndex(&kcmv1.ServiceSet{}, kcmv1.ServiceSetMultiClusterServiceIndexKey, kcmv1.ExtractServiceSetMultiClusterService).
+		Build()
+
+	opReq := OperationRequisites{
+		ObjectKey:       client.ObjectKey{Namespace: ns, Name: cdName},
+		CD:              cd,
+		SystemNamespace: ns,
+	}
+
+	// Step 1: upgrade requested 4.11.3 → 4.12.3; must stop at 4.11.5.
+	serviceSet, op, err := GetServiceSetWithOperation(t.Context(), cl, opReq)
+	require.NoError(t, err)
+	require.Equal(t, kcmv1.ServiceSetOperationUpdate, op,
+		"expected Update to write intermediate step 4.11.5")
+	require.Len(t, serviceSet.Spec.Services, 1)
+	svc := serviceSet.Spec.Services[0]
+	require.Equal(t, templateName(nginxVersions[1]), svc.Template,
+		"must step to intermediate template ingress-nginx-4-11-5, not jump to 4.12.3")
+	require.NotNil(t, svc.Version)
+	require.Equal(t, nginxVersions[1], *svc.Version,
+		"must step to intermediate version 4.11.5, not jump to 4.12.3")
+
+	// Persist the intermediate step.
+	proc := NewProcessor(cl)
+	require.NoError(t, proc.CreateOrUpdateServiceSet(t.Context(), op, serviceSet))
+
+	// Step 2: reconcile again while 4.11.5 is in-flight (spec=4.11.5 but status
+	// still shows 4.11.3 Deployed). Must be a no-op (preserve the in-flight step).
+	_, op, err = GetServiceSetWithOperation(t.Context(), cl, opReq)
+	require.NoError(t, err)
+	require.Equal(t, kcmv1.ServiceSetOperationNone, op,
+		"while 4.11.5 is in-flight, reconcile must be no-op")
+
+	// Step 3: simulate Sveltos completing the 4.11.5 deployment (status → Deployed).
+	updatedServiceSet := &kcmv1.ServiceSet{}
+	require.NoError(t, cl.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: cdName}, updatedServiceSet))
+	updatedServiceSet.Status = kcmv1.ServiceSetStatus{
+		Services: []kcmv1.ServiceState{
+			{
+				State:     kcmv1.ServiceStateDeployed,
+				Name:      svcName,
+				Namespace: svcNamespace,
+				Version:   new(nginxVersions[1]), // ptr("4.11.5")
+			},
+		},
+	}
+	require.NoError(t, cl.Status().Update(t.Context(), updatedServiceSet))
+
+	// Step 4: now 4.11.5 is deployed; next step must be 4.12.3 (the desired).
+	serviceSet, op, err = GetServiceSetWithOperation(t.Context(), cl, opReq)
+	require.NoError(t, err)
+	require.Equal(t, kcmv1.ServiceSetOperationUpdate, op,
+		"after 4.11.5 deploys, must advance to 4.12.3")
+	require.Len(t, serviceSet.Spec.Services, 1)
+	svc = serviceSet.Spec.Services[0]
+	require.Equal(t, templateName(nginxVersions[2]), svc.Template,
+		"second step must be ingress-nginx-4-12-3")
+	require.NotNil(t, svc.Version)
+	require.Equal(t, nginxVersions[2], *svc.Version, "second step version must be 4.12.3")
+}
+
 func Test_FilterServiceDependencies_Order(t *testing.T) {
 	t.Parallel()
 
@@ -1388,5 +1643,97 @@ func Test_FilterServiceDependencies_Order(t *testing.T) {
 			require.Equal(t, prev, got, "output order must be stable across calls")
 		}
 		prev = got
+	}
+}
+
+func Test_minimumUpgradeStep(t *testing.T) {
+	t.Parallel()
+
+	// Helper to build a ServiceUpgradePaths entry.
+	upgradePaths := func(name string, paths ...[]kcmv1.AvailableUpgrade) []kcmv1.ServiceUpgradePaths {
+		up := kcmv1.ServiceUpgradePaths{Name: name}
+		for _, p := range paths {
+			up.AvailableUpgrades = append(up.AvailableUpgrades, kcmv1.UpgradePath{Versions: p})
+		}
+		return []kcmv1.ServiceUpgradePaths{up}
+	}
+	ver := func(v string) kcmv1.AvailableUpgrade { return kcmv1.AvailableUpgrade{Name: "tmpl-" + v, Version: v} }
+
+	for _, tc := range []struct {
+		name     string
+		paths    []kcmv1.ServiceUpgradePaths
+		svcName  string
+		current  string
+		desired  string
+		expected kcmv1.AvailableUpgrade
+	}{
+		{
+			name:     "linear-chain-steps-through-intermediate",
+			paths:    upgradePaths("svc", []kcmv1.AvailableUpgrade{ver("B"), ver("C")}),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "C",
+			expected: ver("B"),
+		},
+		{
+			name: "branching-chain-skips-dead-end-branch",
+			paths: upgradePaths("svc",
+				[]kcmv1.AvailableUpgrade{ver("B")},
+				[]kcmv1.AvailableUpgrade{ver("C")},
+			),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "C",
+			expected: ver("C"),
+		},
+		{
+			name: "branching-chain-with-intermediate-skips-dead-end",
+			paths: upgradePaths("svc",
+				[]kcmv1.AvailableUpgrade{ver("B")},
+				[]kcmv1.AvailableUpgrade{ver("C"), ver("D")},
+			),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "D",
+			expected: ver("C"),
+		},
+		{
+			name:     "final-step-to-desired",
+			paths:    upgradePaths("svc", []kcmv1.AvailableUpgrade{ver("B"), ver("C")}),
+			svcName:  "svc",
+			current:  "B",
+			desired:  "C",
+			expected: ver("C"),
+		},
+		{
+			name:     "no-path-to-desired",
+			paths:    upgradePaths("svc", []kcmv1.AvailableUpgrade{ver("B")}),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "C",
+			expected: kcmv1.AvailableUpgrade{},
+		},
+		{
+			name:     "name-mismatch-returns-zero",
+			paths:    upgradePaths("other-svc", []kcmv1.AvailableUpgrade{ver("B"), ver("C")}),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "C",
+			expected: kcmv1.AvailableUpgrade{},
+		},
+		{
+			name:     "direct-upgrade-no-intermediate",
+			paths:    upgradePaths("svc", []kcmv1.AvailableUpgrade{ver("C")}),
+			svcName:  "svc",
+			current:  "A",
+			desired:  "C",
+			expected: ver("C"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := minimumUpgradeStep(tc.paths, tc.svcName, tc.current, tc.desired)
+			assert.Equal(t, tc.expected, got)
+		})
 	}
 }

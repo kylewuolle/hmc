@@ -408,8 +408,11 @@ func appendIfNotPresent(
 }
 
 // minimumUpgradeStep returns the smallest available upgrade version for the named
-// service that falls within [currentVersion, desiredVersion]. Returns a zero-value
-// AvailableUpgrade if no matching step is found in upgradePaths.
+// service that falls within (currentVersion, desiredVersion] along a path that
+// reaches desiredVersion. Paths that do not include desiredVersion are skipped to
+// prevent routing through dead-end branches that have no route to the desired
+// version (issue #2613). Returns a zero-value AvailableUpgrade if no matching
+// step is found in upgradePaths.
 func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentVersion, desiredVersion string) kcmv1.AvailableUpgrade {
 	var result kcmv1.AvailableUpgrade
 	for _, path := range upgradePaths {
@@ -417,8 +420,15 @@ func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentV
 			continue
 		}
 		for _, upgrade := range path.AvailableUpgrades {
+			// Only consider paths that lead to the desired version; stepping into a
+			// path that doesn't reach it would deploy a dead-end intermediate version.
+			if !slices.ContainsFunc(upgrade.Versions, func(u kcmv1.AvailableUpgrade) bool {
+				return u.Version == desiredVersion
+			}) {
+				continue
+			}
 			for _, u := range upgrade.Versions {
-				if u.Version >= currentVersion && u.Version <= desiredVersion {
+				if u.Version > currentVersion && u.Version <= desiredVersion {
 					if result.Version == "" || u.Version < result.Version {
 						result = u
 					}
@@ -614,13 +624,14 @@ func ResolveServicesToApply(
 		return nil, fmt.Errorf("failed to resolve versions for stored services: %w", err)
 	}
 
-	upgradePaths, err := ServicesUpgradePaths(
-		ctx, c, ServicesWithDesiredChains(desiredServices, storedServices), templateNamespace)
+	servicesWithChains := ServicesWithDesiredChains(desiredServices, storedServices)
+	upgradePaths, err := ServicesUpgradePaths(ctx, c, servicesWithChains, templateNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine upgrade paths: %w", err)
 	}
 
-	return ServicesToDeploy(upgradePaths, filteredServices, serviceSet), nil
+	result := ServicesToDeploy(upgradePaths, filteredServices, serviceSet)
+	return result, nil
 }
 
 func desiredVersionInUpgradePaths(
