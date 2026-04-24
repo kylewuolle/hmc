@@ -200,6 +200,7 @@ func (r *ManagementReconciler) update(ctx context.Context, management *kcmv1.Man
 	driftRequeue, driftErr := r.ensureDriftDetectionManager(ctx, management)
 	if driftErr != nil {
 		l.Error(driftErr, "failed to ensure drift-detection-manager is deployed")
+		requeue = true
 	}
 	if driftRequeue {
 		requeue = true
@@ -506,11 +507,23 @@ func (r *ManagementReconciler) ensureDriftDetectionManager(ctx context.Context, 
 		restartAnnotation   = "k0rdent.mirantis.com/drift-detection-ensure-restart"
 	)
 
-	driftDeploy := &appsv1.Deployment{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: driftDetectionName, Namespace: sveltosNS}, driftDeploy); err == nil {
-		return false, nil // already present, nothing to do
-	} else if !apierrors.IsNotFound(err) {
-		return false, fmt.Errorf("checking for %s: %w", driftDetectionName, err)
+	// we'll list deployments in projectsveltos namespace
+	deployList := &appsv1.DeploymentList{}
+	if err := r.Client.List(ctx, deployList, client.InNamespace(sveltosNS)); err != nil {
+		return false, fmt.Errorf("listing deployments in %s: %w", sveltosNS, err)
+	}
+
+	// we'll iterate over the deployments list and check for addon-controller and drift-detection-manager
+	// if the drift-detection-manager is present, we'll exit. This mean that all required components are
+	// already deployed.
+	var addonDeploy *appsv1.Deployment
+	for i := range deployList.Items {
+		switch deployList.Items[i].Name {
+		case driftDetectionName:
+			return false, nil // already present, nothing to do
+		case addonControllerName:
+			addonDeploy = &deployList.Items[i]
+		}
 	}
 
 	mgmtCluster := &libsveltosv1beta1.SveltosCluster{}
@@ -521,12 +534,8 @@ func (r *ManagementReconciler) ensureDriftDetectionManager(ctx context.Context, 
 		return false, fmt.Errorf("checking for mgmt/mgmt SveltosCluster: %w", err)
 	}
 
-	addonDeploy := &appsv1.Deployment{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: addonControllerName, Namespace: sveltosNS}, addonDeploy); err != nil {
-		if apierrors.IsNotFound(err) {
-			return true, nil
-		}
-		return false, fmt.Errorf("getting %s: %w", addonControllerName, err)
+	if addonDeploy == nil {
+		return true, nil // addon-controller not yet present; requeue
 	}
 
 	if annotations := addonDeploy.Spec.Template.Annotations; annotations != nil && annotations[restartAnnotation] != "" {
