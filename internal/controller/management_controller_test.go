@@ -537,10 +537,10 @@ var _ = Describe("Management Controller", func() {
 		})
 
 		It("skips when drift-detection-manager already exists", func() {
-			driftDetector := newSveltosDeployment(driftDetectionName, sveltosNS)
+			driftDetector := newSveltosDeployment(driftDetectionName)
 			Expect(k8sClient.Create(ctx, driftDetector)).To(Succeed())
 
-			addonController := newSveltosDeployment(addonControllerName, sveltosNS)
+			addonController := newSveltosDeployment(addonControllerName)
 			Expect(k8sClient.Create(ctx, addonController)).To(Succeed())
 
 			r := &ManagementReconciler{Client: k8sClient}
@@ -554,7 +554,7 @@ var _ = Describe("Management Controller", func() {
 		})
 
 		It("requeues without patching when mgmt/mgmt SveltosCluster is missing", func() {
-			addonController := newSveltosDeployment(addonControllerName, sveltosNS)
+			addonController := newSveltosDeployment(addonControllerName)
 			Expect(k8sClient.Create(ctx, addonController)).To(Succeed())
 
 			r := &ManagementReconciler{Client: k8sClient}
@@ -568,7 +568,7 @@ var _ = Describe("Management Controller", func() {
 		})
 
 		It("patches addon-controller with restart annotation when SveltosCluster exists", func() {
-			addonController := newSveltosDeployment(addonControllerName, sveltosNS)
+			addonController := newSveltosDeployment(addonControllerName)
 			Expect(k8sClient.Create(ctx, addonController)).To(Succeed())
 
 			Expect(k8sClient.Create(ctx, &libsveltosv1beta1.SveltosCluster{
@@ -598,11 +598,12 @@ var _ = Describe("Management Controller", func() {
 	})
 })
 
-func newSveltosDeployment(name, namespace string) *appsv1.Deployment {
+func newSveltosDeployment(name string) *appsv1.Deployment {
+	const sveltosNS = "projectsveltos"
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: sveltosNS,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
