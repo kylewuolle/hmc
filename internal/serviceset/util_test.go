@@ -34,6 +34,80 @@ import (
 
 const testSystemNamespace = "test-system-ns"
 
+func TestMinimumUpgradeStep(t *testing.T) {
+	tests := []struct {
+		name            string
+		current         string
+		desired         string
+		expectedVersion string
+	}{
+		{
+			name:            "sequential upgrade enforced (dead branch fix)",
+			current:         "4.11.3",
+			desired:         "4.12.3",
+			expectedVersion: "4.11.5",
+		},
+		{
+			name:            "direct upgrade when no intermediate exists",
+			current:         "4.11.5",
+			desired:         "4.12.3",
+			expectedVersion: "4.12.3",
+		},
+		{
+			name:            "no valid upgrade",
+			current:         "4.12.3",
+			desired:         "4.11.3",
+			expectedVersion: "",
+		},
+	}
+
+	upgradePaths := []kcmv1.ServiceUpgradePaths{
+		{
+			Name: "ingress-nginx",
+			AvailableUpgrades: []kcmv1.UpgradePath{
+				{
+					Versions: []kcmv1.AvailableUpgrade{
+						{Version: "4.11.5"},
+					},
+				},
+				{
+					Versions: []kcmv1.AvailableUpgrade{
+						{Version: "4.12.3"},
+					},
+				},
+				{
+					Versions: []kcmv1.AvailableUpgrade{
+						{Version: "4.11.5"},
+						{Version: "4.12.3"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := minimumUpgradeStep(
+				upgradePaths,
+				"ingress-nginx",
+				tt.current,
+				tt.desired,
+			)
+
+			if tt.expectedVersion == "" {
+				if result.Version != "" {
+					t.Fatalf("expected no upgrade, got %s", result.Version)
+				}
+				return
+			}
+
+			if result.Version != tt.expectedVersion {
+				t.Fatalf("expected %s, got %s", tt.expectedVersion, result.Version)
+			}
+		})
+	}
+}
+
 func Test_ServicesToDeploy(t *testing.T) {
 	t.Parallel()
 
