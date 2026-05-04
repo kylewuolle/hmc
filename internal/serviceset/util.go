@@ -481,6 +481,7 @@ func appendIfNotPresent(
 // service that falls within [currentVersion, desiredVersion]. Returns a zero-value
 // AvailableUpgrade if no matching step is found in upgradePaths.
 func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentVersion, desiredVersion string) kcmv1.AvailableUpgrade {
+
 	current, err := semver.NewVersion(currentVersion)
 	if err != nil {
 		return kcmv1.AvailableUpgrade{}
@@ -490,8 +491,7 @@ func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentV
 		return kcmv1.AvailableUpgrade{}
 	}
 
-	var result kcmv1.AvailableUpgrade
-	var resultSV *semver.Version
+	var minNext *semver.Version
 
 	for _, path := range upgradePaths {
 		if path.Name != name {
@@ -503,16 +503,59 @@ func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentV
 				if err != nil {
 					continue
 				}
-				if v.Compare(current) >= 0 && v.Compare(desired) <= 0 {
-					if resultSV == nil || v.Compare(resultSV) < 0 {
-						result = u
-						resultSV = v
+				if v.Compare(current) > 0 && v.Compare(desired) <= 0 {
+					if minNext == nil || v.Compare(minNext) < 0 {
+						minNext = v
 					}
 				}
 			}
 		}
 	}
-	return result
+
+	if minNext == nil {
+		return kcmv1.AvailableUpgrade{}
+	}
+
+	var best kcmv1.AvailableUpgrade
+	var bestMax *semver.Version
+
+	for _, path := range upgradePaths {
+		if path.Name != name {
+			continue
+		}
+
+		for _, upgrade := range path.AvailableUpgrades {
+
+			var hasMin bool
+			var maxInPath *semver.Version
+			var candidate kcmv1.AvailableUpgrade
+
+			for _, u := range upgrade.Versions {
+				v, err := semver.NewVersion(u.Version)
+				if err != nil {
+					continue
+				}
+
+				if maxInPath == nil || v.Compare(maxInPath) > 0 {
+					maxInPath = v
+				}
+
+				if v.Equal(minNext) {
+					hasMin = true
+					candidate = u
+				}
+			}
+
+			if hasMin {
+				if bestMax == nil || maxInPath.Compare(bestMax) > 0 {
+					best = candidate
+					bestMax = maxInPath
+				}
+			}
+		}
+	}
+
+	return best
 }
 
 // ServicesToDeploy computes the target ServiceWithValues for each service in
