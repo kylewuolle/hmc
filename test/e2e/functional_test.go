@@ -144,7 +144,6 @@ var _ = Describe("Functional e2e tests", Label("provider:cloud", "provider:docke
 		}
 
 		for _, v := range nginxVersions {
-			//name := fmt.Sprintf("%s-%s", nginxChartName, strings.ReplaceAll(v, ".", "-"))
 			serviceTemplateSpecs = append(serviceTemplateSpecs, kcmv1.ServiceTemplateSpec{
 				Helm: &kcmv1.HelmSpec{
 					ChartSpec: &sourcev1.HelmChartSpec{

@@ -481,7 +481,6 @@ func appendIfNotPresent(
 // service that falls within [currentVersion, desiredVersion]. Returns a zero-value
 // AvailableUpgrade if no matching step is found in upgradePaths.
 func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentVersion, desiredVersion string) kcmv1.AvailableUpgrade {
-
 	current, err := semver.NewVersion(currentVersion)
 	if err != nil {
 		return kcmv1.AvailableUpgrade{}
@@ -525,7 +524,6 @@ func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentV
 		}
 
 		for _, upgrade := range path.AvailableUpgrades {
-
 			var hasMin bool
 			var maxInPath *semver.Version
 			var candidate kcmv1.AvailableUpgrade
