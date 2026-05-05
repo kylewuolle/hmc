@@ -30,12 +30,13 @@ import (
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -603,11 +604,22 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 	}
 
 	if management.Spec.CleanupCRDs {
-		requeue, err = r.removeCRDs(ctx)
+		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
+		requeue, err = r.removeCRDsWithSelector(ctx, sel)
+		if err != nil || requeue {
+			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+		}
 	}
 
-	if err != nil || requeue {
-		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+	if management.Spec.CleanupCAPIProviderCRDs {
+		req, err := labels.NewRequirement(kcmv1.CAPIProviderLabelKey, selection.Exists, nil)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		requeue, err = r.removeCRDsWithSelector(ctx, labels.NewSelector().Add(*req))
+		if err != nil || requeue {
+			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+		}
 	}
 	r.eventf(management, "RemovedManagement", "All KCM management components were removed")
 
@@ -983,97 +995,18 @@ func (*ManagementReconciler) warnf(mgmt *kcmv1.Management, reason, message strin
 	record.Warnf(mgmt, nil, reason, "Reconcile", message, args...)
 }
 
-func (r *ManagementReconciler) removeCRDs(ctx context.Context, subCrds map[string]struct{}) (bool, error) {
-	l := ctrl.LoggerFrom(ctx)
-	l.Info("Ensuring all CRDs owned by KCM are removed")
-
-	var crdList apiextv1.CustomResourceDefinitionList
-	if err := r.Client.List(ctx, &crdList); err != nil {
+func (r *ManagementReconciler) removeCRDsWithSelector(ctx context.Context, selector labels.Selector) (bool, error) {
+	crdList := &metav1.PartialObjectMetadataList{}
+	crdList.SetGroupVersionKind(apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinitionList"))
+	if err := r.Client.List(ctx, crdList, &client.ListOptions{LabelSelector: selector}); err != nil {
 		return true, err
 	}
 
-	for _, crd := range crdList.Items {
-		ann := crd.GetAnnotations()
-		if ann == nil {
-			continue
-		}
-
-		if ann["meta.helm.sh/release-name"] != kcmv1.CoreKCMName {
-			continue
-		}
-
-		if ann["meta.helm.sh/release-namespace"] != r.SystemNamespace {
-			continue
-		}
-
-		l.Info("Deleting CRD installed by Helm release", "crd", crd.Name)
-
-		err := r.Client.Delete(ctx, &crd)
-		if err != nil && !apierrors.IsNotFound(err) {
-			l.Error(err, "Failed deleting CRD", "crd", crd.Name)
-			return true, err
+	for i := range crdList.Items {
+		if err := r.Client.Delete(ctx, &crdList.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return true, fmt.Errorf("failed to delete crd %s: %w", crdList.Items[i].Name, err)
 		}
 	}
 
-	for crdName := range subCrds {
-		l.Info("Deleting CRD installed by Helm release", "crd", crdName)
-		crd := apiextv1.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: r.SystemNamespace,
-				Name:      crdName,
-			},
-		}
-		err := r.Client.Delete(ctx, &crd)
-		if err != nil && !apierrors.IsNotFound(err) {
-			l.Error(err, "Failed deleting CRD", "crd", crd)
-			return true, err
-		}
-	}
 	return false, nil
-}
-
-// extractCRDs pulls CRDs from the Helm chart (including subcharts)
-func (r *ManagementReconciler) extractCRDs(ctx context.Context) (map[string]struct{}, error) {
-	crds := make(map[string]struct{})
-	k8sClient, err := kubernetes.NewForConfig(r.Config)
-	if err != nil {
-		return crds, fmt.Errorf("failed to build client: %w", err)
-	}
-
-	drv := driver.NewSecrets(k8sClient.CoreV1().Secrets(r.SystemNamespace))
-	secrets, err := k8sClient.CoreV1().Secrets(r.SystemNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("name=%s,owner=helm", kcmv1.CoreKCMName),
-	})
-	if err != nil {
-		return crds, fmt.Errorf("failed to get helm release: %w", err)
-	}
-
-	var latestSecretName string
-	for _, s := range secrets.Items {
-		if latestSecretName == "" || s.Name > latestSecretName {
-			latestSecretName = s.Name
-		}
-	}
-
-	rel, err := drv.Get(latestSecretName)
-	if err != nil {
-		return crds, fmt.Errorf("failed to get helm release: %w", err)
-	}
-
-	if rel.Chart == nil {
-		return crds, nil
-	}
-
-	for _, crd := range rel.Chart.CRDObjects() {
-		crds[crd.Name] = struct{}{}
-	}
-
-	for _, f := range rel.Chart.Files {
-		if strings.HasPrefix(f.Name, "crds/") {
-			var obj apiextv1.CustomResourceDefinition
-			_ = yaml.Unmarshal(f.Data, &obj)
-			crds[obj.Name] = struct{}{}
-		}
-	}
-	return crds, nil
 }

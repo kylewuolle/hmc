@@ -56,6 +56,9 @@ spec:
             spec:
               description: ManagementSpec defines the desired state of Management
               properties:
+                cleanupCAPIProviderCRDs:
+                  description: CleanupCAPIProviderCRDs indicates whether CAPI provider CRDs should be removed on Management deletion.
+                  type: boolean
                 cleanupCRDs:
                   description: CleanupCRDs is a flag that indicates whether installed CRDs should be removed when a management is deleted
                   type: boolean

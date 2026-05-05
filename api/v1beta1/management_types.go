@@ -32,6 +32,8 @@ const (
 
 	K0rdentManagementClusterLabelKey   = "k0rdent.mirantis.com/management-cluster"
 	K0rdentManagementClusterLabelValue = "true"
+
+	CAPIProviderLabelKey = "cluster.x-k8s.io/provider"
 )
 
 // ManagementSpec defines the desired state of Management
@@ -49,6 +51,11 @@ type ManagementSpec struct {
 
 	// CleanupCRDs is a flag that indicates whether installed CRDs should be removed when a management is deleted
 	CleanupCRDs bool `json:"cleanupCRDs,omitempty"`
+
+	// +optional
+
+	// CleanupCAPIProviderCRDs indicates whether CAPI provider CRDs should be removed on Management deletion.
+	CleanupCAPIProviderCRDs bool `json:"cleanupCAPIProviderCRDs,omitempty"`
 }
 
 const (
