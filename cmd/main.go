@@ -71,7 +71,6 @@ type config struct {
 	enableSveltosExpireCtrl       bool
 	createManagement              bool
 	fluxEnabled                   bool
-	cleanupCRDs                   bool
 }
 
 var (
