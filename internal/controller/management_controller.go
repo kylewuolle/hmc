@@ -603,7 +603,7 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
 	}
 
-	if management.Spec.CleanupCRDs {
+	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CRDs {
 		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
 		requeue, err = r.removeCRDsWithSelector(ctx, sel)
 		if err != nil || requeue {
@@ -611,7 +611,7 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		}
 	}
 
-	if management.Spec.CleanupCAPIProviderCRDs {
+	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CAPIProviderCRDs {
 		req, err := labels.NewRequirement(kcmv1.CAPIProviderLabelKey, selection.Exists, nil)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -995,18 +995,28 @@ func (*ManagementReconciler) warnf(mgmt *kcmv1.Management, reason, message strin
 	record.Warnf(mgmt, nil, reason, "Reconcile", message, args...)
 }
 
+// managementCRDName is the API server object name of the Management CRD.
+const managementCRDName = "managements.k0rdent.mirantis.com"
+
 func (r *ManagementReconciler) removeCRDsWithSelector(ctx context.Context, selector labels.Selector) (bool, error) {
-	crdList := &metav1.PartialObjectMetadataList{}
-	crdList.SetGroupVersionKind(apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinitionList"))
-	if err := r.Client.List(ctx, crdList, &client.ListOptions{LabelSelector: selector}); err != nil {
+	l := ctrl.LoggerFrom(ctx)
+	l.Info("Ensuring CRDs are removed")
+	gvk := apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinition")
+	listOpts := &client.ListOptions{
+		LabelSelector: selector,
+	}
+	if err := kubeutil.EnsureDeleteAllOf(ctx, r.Client, gvk, listOpts, managementCRDName); err != nil {
+		l.Error(err, "Not all CRDs are removed")
 		return true, err
 	}
 
-	for i := range crdList.Items {
-		if err := r.Client.Delete(ctx, &crdList.Items[i]); err != nil && !apierrors.IsNotFound(err) {
-			return true, fmt.Errorf("failed to delete crd %s: %w", crdList.Items[i].Name, err)
+	mgmtCRD := &apiextv1.CustomResourceDefinition{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Name: managementCRDName}, mgmtCRD); err == nil {
+		if selector.Matches(labels.Set(mgmtCRD.Labels)) && mgmtCRD.DeletionTimestamp.IsZero() {
+			if err := r.Client.Delete(ctx, mgmtCRD); client.IgnoreNotFound(err) != nil {
+				return true, err
+			}
 		}
 	}
-
 	return false, nil
 }

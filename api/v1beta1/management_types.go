@@ -38,6 +38,11 @@ const (
 
 // ManagementSpec defines the desired state of Management
 type ManagementSpec struct {
+	// +optional
+
+	// Cleanup configures CRD removal behaviour when the Management object is deleted.
+	Cleanup *ManagementCleanup `json:"cleanup,omitempty"`
+
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 
@@ -46,16 +51,21 @@ type ManagementSpec struct {
 
 	// ComponentsCommonSpec defines the desired state of management components.
 	ComponentsCommonSpec `json:",inline"`
+}
 
-	// + optional
+// ManagementCleanup controls which CRDs are removed when a Management object is deleted.
+type ManagementCleanup struct {
+	// +optional
 
-	// CleanupCRDs is a flag that indicates whether installed CRDs should be removed when a management is deleted
-	CleanupCRDs bool `json:"cleanupCRDs,omitempty"`
+	// CRDs indicates whether k0rdent-owned CRDs should be removed when a Management is deleted.
+	CRDs bool `json:"crds,omitempty"`
 
 	// +optional
 
-	// CleanupCAPIProviderCRDs indicates whether CAPI provider CRDs should be removed on Management deletion.
-	CleanupCAPIProviderCRDs bool `json:"cleanupCAPIProviderCRDs,omitempty"`
+	// CAPIProviderCRDs indicates whether CRDs installed by the CAPI operator should be removed on
+	// Management deletion. Note: this removes all CAPI provider CRDs on the cluster,
+	// including any that were not installed by k0rdent.
+	CAPIProviderCRDs bool `json:"capiProviderCRDs,omitempty"`
 }
 
 const (
