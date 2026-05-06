@@ -56,12 +56,19 @@ spec:
             spec:
               description: ManagementSpec defines the desired state of Management
               properties:
-                cleanupCAPIProviderCRDs:
-                  description: CleanupCAPIProviderCRDs indicates whether CAPI provider CRDs should be removed on Management deletion.
-                  type: boolean
-                cleanupCRDs:
-                  description: CleanupCRDs is a flag that indicates whether installed CRDs should be removed when a management is deleted
-                  type: boolean
+                cleanup:
+                  description: Cleanup configures CRD removal behaviour when the Management object is deleted.
+                  properties:
+                    capiProviderCRDs:
+                      description: |-
+                        CAPIProviderCRDs indicates whether CRDs installed by the CAPI operator should be removed on
+                        Management deletion. Note: this removes all CAPI provider CRDs on the cluster,
+                        including any that were not installed by k0rdent.
+                      type: boolean
+                    crds:
+                      description: CRDs indicates whether k0rdent-owned CRDs should be removed when a Management is deleted.
+                      type: boolean
+                  type: object
                 core:
                   description: |-
                     Core holds the core components that are mandatory.
