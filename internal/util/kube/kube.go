@@ -36,7 +36,7 @@ const (
 
 func EnsureDeleteAllOf(ctx context.Context, cl client.Client, gvk schema.GroupVersionKind, opts *client.ListOptions, exclude ...string) (requeue bool, err error) {
 	l := ctrl.LoggerFrom(ctx).V(1).WithName("ensure-delete")
-    itemsList := &metav1.PartialObjectMetadataList{}
+	itemsList := &metav1.PartialObjectMetadataList{}
 	itemsList.SetGroupVersionKind(gvk)
 	if err := cl.List(ctx, itemsList, opts); err != nil {
 		return false, fmt.Errorf("failed to list %s: %w", gvk.String(), err)

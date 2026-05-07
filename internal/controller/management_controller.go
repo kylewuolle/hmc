@@ -50,6 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
+	"github.com/K0rdent/kcm/internal/config"
 	"github.com/K0rdent/kcm/internal/controller/components"
 	"github.com/K0rdent/kcm/internal/record"
 	kubeutil "github.com/K0rdent/kcm/internal/util/kube"
@@ -603,8 +604,9 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
 	}
 
+	kcmReleaseName := config.KCMHelmReleaseName()
 	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CRDs {
-		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
+		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmReleaseName})
 		requeue, err = r.removeCRDsWithSelector(ctx, sel)
 		if err != nil || requeue {
 			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
@@ -1005,9 +1007,9 @@ func (r *ManagementReconciler) removeCRDsWithSelector(ctx context.Context, selec
 	listOpts := &client.ListOptions{
 		LabelSelector: selector,
 	}
-	if err := kubeutil.EnsureDeleteAllOf(ctx, r.Client, gvk, listOpts, managementCRDName); err != nil {
+	if requeue, err := kubeutil.EnsureDeleteAllOf(ctx, r.Client, gvk, listOpts, managementCRDName); err != nil {
 		l.Error(err, "Not all CRDs are removed")
-		return true, err
+		return requeue, err
 	}
 
 	mgmtCRD := &apiextv1.CustomResourceDefinition{}
