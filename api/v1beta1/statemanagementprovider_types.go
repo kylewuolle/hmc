@@ -221,6 +221,7 @@ type StateManagementProviderList struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
 type ProfileConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -242,6 +243,14 @@ type ProfileConfig struct {
 	StopOnConflict       bool                                         `json:"stopOnConflict,omitempty"`
 }
 
+// +kubebuilder:object:root=true
+type ProfileConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ProfileConfig `json:"items"`
+}
+
 func init() {
 	SchemeBuilder.Register(&StateManagementProvider{}, &StateManagementProviderList{})
+	SchemeBuilder.Register(&ProfileConfig{}, &ProfileConfigList{})
 }

@@ -89,7 +89,7 @@ func (v *ClusterDeploymentValidator) ValidateCreate(ctx context.Context, cluster
 		return nil, fmt.Errorf("%s: %w", invalidClusterDeploymentMsg, err)
 	}
 
-	if err := validationutil.ServicesHaveValidProviderConfiguration(ctx, v.Client, v.Discovery, clusterDeployment.Spec.ServiceSpec, clusterDeployment.Namespace); err != nil {
+	if err := validationutil.ServicesHaveValidProviderConfiguration(ctx, v.Client, v.Discovery, clusterDeployment.Spec.ServiceSpec); err != nil {
 		return nil, fmt.Errorf("%s: %w", invalidClusterDeploymentMsg, err)
 	}
 
@@ -130,7 +130,7 @@ func (v *ClusterDeploymentValidator) ValidateUpdate(ctx context.Context, oldClus
 			return admission.Warnings{"Failed to validate k8s version compatibility with ServiceTemplates"}, fmt.Errorf("failed to validate k8s compatibility: %w", err)
 		}
 
-		if err := validationutil.ServicesHaveValidProviderConfiguration(ctx, v.Client, v.Discovery, newClusterDeployment.Spec.ServiceSpec, newClusterDeployment.Namespace); err != nil {
+		if err := validationutil.ServicesHaveValidProviderConfiguration(ctx, v.Client, v.Discovery, newClusterDeployment.Spec.ServiceSpec); err != nil {
 			return nil, fmt.Errorf("%s: %w", invalidClusterDeploymentMsg, err)
 		}
 
@@ -155,6 +155,12 @@ func (v *ClusterDeploymentValidator) ValidateUpdate(ctx context.Context, oldClus
 		}
 
 		if err := validationutil.ValidateServiceDependencyOverall(newServices); err != nil {
+			return nil, fmt.Errorf("%s: %w", invalidClusterDeploymentMsg, err)
+		}
+	}
+
+	if !equality.Semantic.DeepEqual(oldClusterDeployment.Spec.ServiceSpec.Provider, newClusterDeployment.Spec.ServiceSpec.Provider) {
+		if err := validationutil.ServicesHaveValidProviderConfiguration(ctx, v.Client, v.Discovery, newClusterDeployment.Spec.ServiceSpec); err != nil {
 			return nil, fmt.Errorf("%s: %w", invalidClusterDeploymentMsg, err)
 		}
 	}
