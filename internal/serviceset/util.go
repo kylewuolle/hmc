@@ -478,9 +478,10 @@ func appendIfNotPresent(
 }
 
 // minimumUpgradeStep returns the smallest available upgrade version for the named
-// service that falls within [currentVersion, desiredVersion]. Returns a zero-value
-// AvailableUpgrade if no matching step is found in upgradePaths.
-func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentVersion, desiredVersion string) kcmv1.AvailableUpgrade {
+// service that falls within (currentVersion, desiredVersion]. Only upgrade paths
+// that actually contain the desired version are considered, avoiding dead-end branches.
+// Returns a zero-value AvailableUpgrade if no matching step is found in upgradePaths.
+func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, namespace, currentVersion, desiredVersion string) kcmv1.AvailableUpgrade {
 	current, err := semver.NewVersion(currentVersion)
 	if err != nil {
 		return kcmv1.AvailableUpgrade{}
@@ -490,64 +491,32 @@ func minimumUpgradeStep(upgradePaths []kcmv1.ServiceUpgradePaths, name, currentV
 		return kcmv1.AvailableUpgrade{}
 	}
 
-	var minNext *semver.Version
+	var best kcmv1.AvailableUpgrade
+	var bestNext *semver.Version
 
 	for _, path := range upgradePaths {
-		if path.Name != name {
+		if path.Name != name || effectiveNamespace(path.Namespace) != effectiveNamespace(namespace) {
 			continue
 		}
 		for _, upgrade := range path.AvailableUpgrades {
+			// Only consider upgrade paths that can actually reach the desired version.
+			if !slices.ContainsFunc(upgrade.Versions, func(u kcmv1.AvailableUpgrade) bool {
+				v, err := semver.NewVersion(u.Version)
+				return err == nil && v.Equal(desired)
+			}) {
+				continue
+			}
+
 			for _, u := range upgrade.Versions {
 				v, err := semver.NewVersion(u.Version)
 				if err != nil {
 					continue
 				}
 				if v.Compare(current) > 0 && v.Compare(desired) <= 0 {
-					if minNext == nil || v.Compare(minNext) < 0 {
-						minNext = v
+					if bestNext == nil || v.Compare(bestNext) < 0 {
+						best = u
+						bestNext = v
 					}
-				}
-			}
-		}
-	}
-
-	if minNext == nil {
-		return kcmv1.AvailableUpgrade{}
-	}
-
-	var best kcmv1.AvailableUpgrade
-	var bestMax *semver.Version
-
-	for _, path := range upgradePaths {
-		if path.Name != name {
-			continue
-		}
-
-		for _, upgrade := range path.AvailableUpgrades {
-			var hasMin bool
-			var maxInPath *semver.Version
-			var candidate kcmv1.AvailableUpgrade
-
-			for _, u := range upgrade.Versions {
-				v, err := semver.NewVersion(u.Version)
-				if err != nil {
-					continue
-				}
-
-				if maxInPath == nil || v.Compare(maxInPath) > 0 {
-					maxInPath = v
-				}
-
-				if v.Equal(minNext) {
-					hasMin = true
-					candidate = u
-				}
-			}
-
-			if hasMin {
-				if bestMax == nil || maxInPath.Compare(bestMax) > 0 {
-					best = candidate
-					bestMax = maxInPath
 				}
 			}
 		}
@@ -660,7 +629,7 @@ func ServicesToDeploy(
 
 		// find the minimum valid upgrade step towards the desired version
 		currentVersion := deployedVersions[key]
-		minimumUpgrade := minimumUpgradeStep(upgradePaths, s.Name, currentVersion, desiredVersion)
+		minimumUpgrade := minimumUpgradeStep(upgradePaths, s.Name, s.Namespace, currentVersion, desiredVersion)
 		if minimumUpgrade.Version == "" {
 			minimumUpgrade = kcmv1.AvailableUpgrade{
 				Name:    desiredTemplate,
