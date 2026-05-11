@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -54,6 +55,9 @@ func resolveCRDName(
 	}
 
 	for _, r := range resources.APIResources {
+		if strings.Contains(r.Name, "/") {
+			continue
+		}
 		if r.Kind == gvk.Kind {
 			crdName := fmt.Sprintf("%s.%s", r.Name, gvk.Group)
 			return crdName, nil
@@ -67,7 +71,6 @@ func getProvider(
 	ctx context.Context,
 	cl client.Client,
 	serviceSpec kcmv1.ServiceSpec,
-	namespace string,
 ) (*kcmv1.StateManagementProvider, error) {
 	providerName := kubeutil.DefaultStateManagementProvider
 	if serviceSpec.Provider.Name != "" {
@@ -75,11 +78,7 @@ func getProvider(
 	}
 
 	provider := &kcmv1.StateManagementProvider{}
-	if err := cl.Get(
-		ctx,
-		client.ObjectKey{Namespace: namespace, Name: providerName},
-		provider,
-	); err != nil {
+	if err := cl.Get(ctx, client.ObjectKey{Name: providerName}, provider); err != nil {
 		return nil, fmt.Errorf("failed to retrieve provider %q: %w", providerName, err)
 	}
 
@@ -137,13 +136,12 @@ func ServicesHaveValidProviderConfiguration(
 	cl client.Client,
 	disco discovery.DiscoveryInterface,
 	serviceSpec kcmv1.ServiceSpec,
-	namespace string,
 ) error {
 	if serviceSpec.Provider.Config == nil {
 		return nil
 	}
 
-	provider, err := getProvider(ctx, cl, serviceSpec, namespace)
+	provider, err := getProvider(ctx, cl, serviceSpec)
 	if err != nil {
 		return err
 	}
