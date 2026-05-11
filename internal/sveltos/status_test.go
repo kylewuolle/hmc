@@ -24,6 +24,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestGetStatusConditionsNilSummary(t *testing.T) {
+	conditions, err := GetStatusConditions(nil)
+	assert.Nil(t, conditions)
+	assert.ErrorContains(t, err, "nil summary provided")
+}
+
 func TestSetStatusConditions(t *testing.T) {
 	releaseNamespace := "testnamespace"
 	releaseName := "testname"
