@@ -1894,12 +1894,16 @@ func (in *ProfileConfig) DeepCopyInto(out *ProfileConfig) {
 	if in.TemplateResourceRefs != nil {
 		in, out := &in.TemplateResourceRefs, &out.TemplateResourceRefs
 		*out = make([]apiv1beta1.TemplateResourceRef, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.PolicyRefs != nil {
 		in, out := &in.PolicyRefs, &out.PolicyRefs
 		*out = make([]apiv1beta1.PolicyRef, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.DriftExclusions != nil {
 		in, out := &in.DriftExclusions, &out.DriftExclusions
