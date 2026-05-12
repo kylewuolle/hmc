@@ -103,7 +103,6 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			claim := createIPAMClaim(name, ns.Name)
 			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())
 
-			// Add a finalizer so deletion sets DeletionTimestamp without removing the object
 			claim.Finalizers = []string{"test.io/fake-finalizer"}
 			Expect(k8sClient.Update(ctx, &claim)).To(Succeed())
 
@@ -179,7 +178,6 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			ns = newNamespace()
 			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
 
-			// 192.168.1.0/33 passes CRD (plain string) but fails net.ParseCIDR
 			claim := kcmv1.ClusterIPAMClaim{
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name},
 				Spec: kcmv1.ClusterIPAMClaimSpec{
@@ -222,7 +220,6 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			ns = newNamespace()
 			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
 
-			// Pre-set ClusterIPAMRef to the same value the controller would set
 			claim := createIPAMClaim(name, ns.Name)
 			claim.Spec.ClusterIPAMRef = name
 			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())

@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
-	clusterops "github.com/projectsveltos/addon-controller/lib/clusterops"
+	"github.com/projectsveltos/addon-controller/lib/clusterops"
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -529,7 +529,6 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 					GenerateName: "ss-no-fin-",
 					Namespace:    namespace.Name,
 					Labels:       testLabel,
-					// intentionally no Finalizers
 				},
 				Spec: kcmv1.ServiceSetSpec{
 					Cluster: clusterDeployment.Name,
@@ -547,7 +546,6 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 				HaveField("Finalizers", ContainElement(kcmv1.ServiceSetFinalizer)),
 			)
 
-			// cleanup
 			noFinalizerSS.Finalizers = nil
 			Expect(cl.Update(ctx, &noFinalizerSS)).To(Succeed())
 			Expect(cl.Delete(ctx, &noFinalizerSS)).To(Succeed())
@@ -705,83 +703,60 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 		})
 	})
 
-	Context("When ServiceSet has a Kustomize template with invalid status (Valid=false)", func() {
-		It("should fail with kustomization refs build error", func() {
-			By("making StateManagementProvider ready", func() {
-				stateManagementProvider.Status.Ready = true
-				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
-			})
+	invalidSourceTemplateTest := func(contextDesc, itDesc, tmplName, srcName, svcName string, specFn func(*kcmv1.ServiceTemplateSpec, *kcmv1.SourceSpec)) {
+		Context(contextDesc, func() {
+			It(itDesc, func() {
+				By("making StateManagementProvider ready", func() {
+					stateManagementProvider.Status.Ready = true
+					Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+				})
 
-			By("creating a Kustomize ServiceTemplate with Valid=false", func() {
-				tmpl := &kcmv1.ServiceTemplate{
-					ObjectMeta: metav1.ObjectMeta{Name: "kust-invalid", Namespace: namespace.Name},
-					Spec: kcmv1.ServiceTemplateSpec{
-						Kustomize: &kcmv1.SourceSpec{
-							DeploymentType: "Local",
-							LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: "kust-src"},
-						},
-					},
-				}
-				Expect(cl.Create(ctx, tmpl)).To(Succeed())
-				// Status.Valid remains false (default) — this makes getKustomizationRefs record an invalid error
-				tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: "kust-src", Namespace: namespace.Name}
-				Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
-				DeferCleanup(cl.Delete, tmpl)
-			})
+				By("creating a ServiceTemplate with Valid=false", func() {
+					spec := &kcmv1.ServiceTemplateSpec{}
+					src := &kcmv1.SourceSpec{
+						DeploymentType: "Local",
+						LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: srcName},
+					}
+					specFn(spec, src)
+					tmpl := &kcmv1.ServiceTemplate{
+						ObjectMeta: metav1.ObjectMeta{Name: tmplName, Namespace: namespace.Name},
+						Spec:       *spec,
+					}
+					Expect(cl.Create(ctx, tmpl)).To(Succeed())
+					tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: srcName, Namespace: namespace.Name}
+					Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
+					DeferCleanup(cl.Delete, tmpl)
+				})
 
-			By("adding a service referencing the invalid Kustomize template", func() {
-				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
-					{Name: "kust-inv-svc", Namespace: namespace.Name, Template: "kust-invalid"},
-				}
-				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
-			})
+				By("adding a service referencing the invalid template", func() {
+					serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+						{Name: svcName, Namespace: namespace.Name, Template: tmplName},
+					}
+					Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+				})
 
-			By("reconciling and expecting a kustomization refs build error", func() {
-				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
+				By("reconciling and expecting a profile build error", func() {
+					_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
+				})
 			})
 		})
-	})
+	}
 
-	Context("When ServiceSet has a Resources template with invalid status (Valid=false)", func() {
-		It("should fail with policy refs build error", func() {
-			By("making StateManagementProvider ready", func() {
-				stateManagementProvider.Status.Ready = true
-				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
-			})
+	invalidSourceTemplateTest(
+		"When ServiceSet has a Kustomize template with invalid status (Valid=false)",
+		"should fail with kustomization refs build error",
+		"kust-invalid", "kust-src", "kust-inv-svc",
+		func(spec *kcmv1.ServiceTemplateSpec, src *kcmv1.SourceSpec) { spec.Kustomize = src },
+	)
 
-			By("creating a Resources ServiceTemplate with Valid=false", func() {
-				tmpl := &kcmv1.ServiceTemplate{
-					ObjectMeta: metav1.ObjectMeta{Name: "res-invalid", Namespace: namespace.Name},
-					Spec: kcmv1.ServiceTemplateSpec{
-						Resources: &kcmv1.SourceSpec{
-							DeploymentType: "Local",
-							LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: "res-src"},
-						},
-					},
-				}
-				Expect(cl.Create(ctx, tmpl)).To(Succeed())
-				// Status.Valid remains false (default) — this makes getPolicyRefs record an invalid error
-				tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: "res-src", Namespace: namespace.Name}
-				Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
-				DeferCleanup(cl.Delete, tmpl)
-			})
-
-			By("adding a service referencing the invalid Resources template", func() {
-				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
-					{Name: "res-inv-svc", Namespace: namespace.Name, Template: "res-invalid"},
-				}
-				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
-			})
-
-			By("reconciling and expecting a policy refs build error", func() {
-				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
-			})
-		})
-	})
+	invalidSourceTemplateTest(
+		"When ServiceSet has a Resources template with invalid status (Valid=false)",
+		"should fail with policy refs build error",
+		"res-invalid", "res-src", "res-inv-svc",
+		func(spec *kcmv1.ServiceTemplateSpec, src *kcmv1.SourceSpec) { spec.Resources = src },
+	)
 
 	Context("When ServiceSet labels do not match the StateManagementProvider selector", func() {
 		It("should skip reconciliation without creating a Profile", func() {
