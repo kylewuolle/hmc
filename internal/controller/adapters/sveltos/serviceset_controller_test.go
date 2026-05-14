@@ -18,9 +18,11 @@ import (
 	"reflect"
 	"time"
 
+	helmcontrollerv2 "github.com/fluxcd/helm-controller/api/v2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	addoncontrollerv1beta1 "github.com/projectsveltos/addon-controller/api/v1beta1"
+	"github.com/projectsveltos/addon-controller/lib/clusterops"
 	libsveltosv1beta1 "github.com/projectsveltos/libsveltos/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -507,6 +509,437 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 					HaveField("Spec.SyncMode", Equal(addoncontrollerv1beta1.SyncModeContinuous)),
 					HaveField("Spec.ContinueOnError", BeTrue()),
 				))
+			})
+		})
+	})
+
+	Context("When ServiceSet does not exist in the cluster", func() {
+		It("should return nil without error", func() {
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: client.ObjectKey{Name: "non-existent-ss", Namespace: namespace.Name},
+			})
+			Expect(err).To(Succeed())
+		})
+	})
+
+	Context("When ServiceSet has no finalizer on first reconcile", func() {
+		It("should add the finalizer and return without further processing", func() {
+			noFinalizerSS := kcmv1.ServiceSet{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "ss-no-fin-",
+					Namespace:    namespace.Name,
+					Labels:       testLabel,
+				},
+				Spec: kcmv1.ServiceSetSpec{
+					Cluster: clusterDeployment.Name,
+					Provider: kcmv1.StateManagementProviderConfig{
+						Name: stateManagementProvider.Name,
+					},
+				},
+			}
+			Expect(cl.Create(ctx, &noFinalizerSS)).To(Succeed())
+
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&noFinalizerSS)})
+			Expect(err).To(Succeed())
+
+			Expect(Object(&noFinalizerSS)()).Should(
+				HaveField("Finalizers", ContainElement(kcmv1.ServiceSetFinalizer)),
+			)
+
+			noFinalizerSS.Finalizers = nil
+			Expect(cl.Update(ctx, &noFinalizerSS)).To(Succeed())
+			Expect(cl.Delete(ctx, &noFinalizerSS)).To(Succeed())
+		})
+	})
+
+	Context("When ServiceSet has a service referencing a non-existent ServiceTemplate", func() {
+		It("should fail reconciliation with a helm charts build error", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("adding a service with a non-existent template reference", func() {
+				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+					{
+						Name:      "test-svc",
+						Namespace: namespace.Name,
+						Template:  "does-not-exist",
+					},
+				}
+				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling and expecting an error", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
+			})
+		})
+	})
+
+	Context("When ServiceSet has a service referencing a Kustomize ServiceTemplate", func() {
+		It("should create a Profile with KustomizationRef", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("creating a Kustomize ServiceTemplate and setting its status", func() {
+				tmpl := &kcmv1.ServiceTemplate{
+					ObjectMeta: metav1.ObjectMeta{Name: "kust-tmpl", Namespace: namespace.Name},
+					Spec: kcmv1.ServiceTemplateSpec{
+						Kustomize: &kcmv1.SourceSpec{
+							DeploymentType: "Local",
+							LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: "kust-src"},
+						},
+					},
+				}
+				Expect(cl.Create(ctx, tmpl)).To(Succeed())
+				tmpl.Status.Valid = true
+				tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: "kust-src", Namespace: namespace.Name}
+				Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
+				DeferCleanup(cl.Delete, tmpl)
+			})
+
+			By("adding a service referencing the Kustomize template", func() {
+				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+					{Name: "kust-svc", Namespace: namespace.Name, Template: "kust-tmpl"},
+				}
+				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling and verifying Profile has KustomizationRef", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+
+				prof := addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &prof)).To(Succeed())
+				Expect(prof.Spec.KustomizationRefs).To(HaveLen(1))
+				Expect(prof.Spec.KustomizationRefs[0].Kind).To(Equal("ConfigMap"))
+			})
+		})
+	})
+
+	Context("When ServiceSet has a service referencing a Resources ServiceTemplate", func() {
+		It("should create a Profile with PolicyRef from Resources template", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("creating a Resources ServiceTemplate and setting its status", func() {
+				tmpl := &kcmv1.ServiceTemplate{
+					ObjectMeta: metav1.ObjectMeta{Name: "res-tmpl", Namespace: namespace.Name},
+					Spec: kcmv1.ServiceTemplateSpec{
+						Resources: &kcmv1.SourceSpec{
+							DeploymentType: "Local",
+							LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: "res-src"},
+						},
+					},
+				}
+				Expect(cl.Create(ctx, tmpl)).To(Succeed())
+				tmpl.Status.Valid = true
+				tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: "res-src", Namespace: namespace.Name}
+				Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
+				DeferCleanup(cl.Delete, tmpl)
+			})
+
+			By("adding a service referencing the Resources template", func() {
+				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+					{Name: "res-svc", Namespace: namespace.Name, Template: "res-tmpl"},
+				}
+				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling and verifying Profile has the Resources PolicyRef", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+
+				prof := addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &prof)).To(Succeed())
+				Expect(prof.Spec.PolicyRefs).To(ContainElement(
+					HaveField("Kind", "ConfigMap"),
+				))
+			})
+		})
+	})
+
+	Context("When ServiceSet has a service with a Helm template that has no status ChartRef", func() {
+		It("should fail with 'status not updated' error covering helmChartFromSpecOrRef", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("creating a Helm ServiceTemplate with ChartRef but no status ChartRef", func() {
+				tmpl := &kcmv1.ServiceTemplate{
+					ObjectMeta: metav1.ObjectMeta{Name: "helm-no-status", Namespace: namespace.Name},
+					Spec: kcmv1.ServiceTemplateSpec{
+						Helm: &kcmv1.HelmSpec{
+							ChartRef: &helmcontrollerv2.CrossNamespaceSourceReference{
+								Kind: "HelmChart",
+								Name: "test-chart",
+							},
+						},
+					},
+				}
+				Expect(cl.Create(ctx, tmpl)).To(Succeed())
+				DeferCleanup(cl.Delete, tmpl)
+			})
+
+			By("adding a service referencing the Helm template", func() {
+				serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+					{Name: "helm-svc", Namespace: namespace.Name, Template: "helm-no-status"},
+				}
+				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling and expecting a 'status not updated' error", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
+			})
+		})
+	})
+
+	invalidSourceTemplateTest := func(contextDesc, itDesc, tmplName, srcName, svcName string, specFn func(*kcmv1.ServiceTemplateSpec, *kcmv1.SourceSpec)) {
+		Context(contextDesc, func() {
+			It(itDesc, func() {
+				By("making StateManagementProvider ready", func() {
+					stateManagementProvider.Status.Ready = true
+					Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+				})
+
+				By("creating a ServiceTemplate with Valid=false", func() {
+					spec := &kcmv1.ServiceTemplateSpec{}
+					src := &kcmv1.SourceSpec{
+						DeploymentType: "Local",
+						LocalSourceRef: &kcmv1.LocalSourceRef{Kind: "ConfigMap", Name: srcName},
+					}
+					specFn(spec, src)
+					tmpl := &kcmv1.ServiceTemplate{
+						ObjectMeta: metav1.ObjectMeta{Name: tmplName, Namespace: namespace.Name},
+						Spec:       *spec,
+					}
+					Expect(cl.Create(ctx, tmpl)).To(Succeed())
+					tmpl.Status.SourceStatus = &kcmv1.SourceStatus{Kind: "ConfigMap", Name: srcName, Namespace: namespace.Name}
+					Expect(cl.Status().Update(ctx, tmpl)).To(Succeed())
+					DeferCleanup(cl.Delete, tmpl)
+				})
+
+				By("adding a service referencing the invalid template", func() {
+					serviceSet.Spec.Services = []kcmv1.ServiceWithValues{
+						{Name: svcName, Namespace: namespace.Name, Template: tmplName},
+					}
+					Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+				})
+
+				By("reconciling and expecting a profile build error", func() {
+					_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("failed to build Profile"))
+				})
+			})
+		})
+	}
+
+	invalidSourceTemplateTest(
+		"When ServiceSet has a Kustomize template with invalid status (Valid=false)",
+		"should fail with kustomization refs build error",
+		"kust-invalid", "kust-src", "kust-inv-svc",
+		func(spec *kcmv1.ServiceTemplateSpec, src *kcmv1.SourceSpec) { spec.Kustomize = src },
+	)
+
+	invalidSourceTemplateTest(
+		"When ServiceSet has a Resources template with invalid status (Valid=false)",
+		"should fail with policy refs build error",
+		"res-invalid", "res-src", "res-inv-svc",
+		func(spec *kcmv1.ServiceTemplateSpec, src *kcmv1.SourceSpec) { spec.Resources = src },
+	)
+
+	Context("When ServiceSet labels do not match the StateManagementProvider selector", func() {
+		It("should skip reconciliation without creating a Profile", func() {
+			By("marking StateManagementProvider as ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("clearing ServiceSet labels so they no longer match the provider selector", func() {
+				serviceSet.Labels = nil
+				Expect(cl.Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling the ServiceSet", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+			})
+
+			By("verifying no Profile was created", func() {
+				prof := addoncontrollerv1beta1.Profile{}
+				err := cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &prof)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			})
+		})
+	})
+
+	Context("When ServiceSet is deleted after a Profile was created", func() {
+		It("should delete the Profile then remove the finalizer on the next reconcile", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("reconciling to create the Profile", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+				prof := addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &prof)).To(Succeed())
+			})
+
+			By("deleting the ServiceSet", func() {
+				Expect(cl.Delete(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("first reconcile: should delete the Profile", func() {
+				result, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+				Expect(result.RequeueAfter).To(Equal(reconciler.requeueInterval))
+
+				prof := addoncontrollerv1beta1.Profile{}
+				err = cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &prof)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			})
+
+			By("second reconcile: should remove the finalizer", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+			})
+
+			By("verifying the ServiceSet is eventually removed", func() {
+				Eventually(func() bool {
+					ss := &kcmv1.ServiceSet{}
+					return apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), ss))
+				}).Should(BeTrue())
+			})
+		})
+	})
+
+	Context("When ServiceSet is deleted with no Profile and empty service list", func() {
+		It("should remove the finalizer and allow object deletion", func() {
+			By("deleting the ServiceSet to trigger reconcileDelete", func() {
+				Expect(cl.Delete(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling the deleted ServiceSet", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+			})
+
+			By("verifying the ServiceSet is eventually deleted", func() {
+				Eventually(func() bool {
+					ss := &kcmv1.ServiceSet{}
+					return apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), ss))
+				}).Should(BeTrue())
+			})
+		})
+	})
+
+	Context("When ServiceSet is deleted but has services in non-Deleting state", func() {
+		It("should transition service states to Deleting and requeue", func() {
+			now := metav1.Now()
+			By("seeding a service status on the ServiceSet", func() {
+				serviceSet.Status.Services = []kcmv1.ServiceState{
+					{
+						Name:                    "test-service",
+						Type:                    kcmv1.ServiceTypeHelm,
+						State:                   kcmv1.ServiceStateProvisioning,
+						LastStateTransitionTime: &now,
+					},
+				}
+				Expect(cl.Status().Update(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("deleting the ServiceSet", func() {
+				Expect(cl.Delete(ctx, &serviceSet)).To(Succeed())
+			})
+
+			By("reconciling the deleted ServiceSet", func() {
+				result, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+				// reconcileDelete returns immediately after updating statuses
+				Expect(result.RequeueAfter).To(BeZero())
+			})
+
+			By("verifying services transitioned to Deleting state", func() {
+				ss := &kcmv1.ServiceSet{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), ss)).To(Succeed())
+				Expect(ss.Status.Services).To(HaveLen(1))
+				Expect(ss.Status.Services[0].State).To(Equal(kcmv1.ServiceStateDeleting))
+			})
+
+			By("cleaning up: remove finalizer so AfterEach can delete the ServiceSet", func() {
+				ss := &kcmv1.ServiceSet{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), ss)).To(Succeed())
+				ss.Finalizers = nil
+				Expect(cl.Update(ctx, ss)).To(Succeed())
+			})
+		})
+	})
+
+	Context("When Profile has MatchingClusterRefs and a ClusterSummary exists", func() {
+		It("should successfully collect service statuses via collectServiceStatusesFromProfileOrClusterProfile", func() {
+			By("making StateManagementProvider ready", func() {
+				stateManagementProvider.Status.Ready = true
+				Expect(cl.Status().Update(ctx, &stateManagementProvider)).To(Succeed())
+			})
+
+			By("first reconcile to create the Profile", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
+				prof := &addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), prof)).To(Succeed())
+			})
+
+			By("setting Profile.Status.MatchingClusterRefs to the CAPI cluster", func() {
+				prof := &addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), prof)).To(Succeed())
+				prof.Status.MatchingClusterRefs = []corev1.ObjectReference{
+					{
+						APIVersion: clusterapiv1.GroupVersion.String(),
+						Kind:       "Cluster",
+						Name:       clusterDeployment.Name,
+						Namespace:  namespace.Name,
+					},
+				}
+				Expect(cl.Status().Update(ctx, prof)).To(Succeed())
+			})
+
+			By("creating a ClusterSummary with the name computed by clusterops", func() {
+				summaryName := clusterops.GetClusterSummaryName(
+					addoncontrollerv1beta1.ProfileKind,
+					serviceSet.Name,
+					clusterDeployment.Name,
+					false,
+				)
+				summary := &addoncontrollerv1beta1.ClusterSummary{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      summaryName,
+						Namespace: namespace.Name,
+					},
+					Spec: addoncontrollerv1beta1.ClusterSummarySpec{
+						ClusterNamespace: namespace.Name,
+						ClusterName:      clusterDeployment.Name,
+						ClusterType:      libsveltosv1beta1.ClusterTypeCapi,
+					},
+				}
+				Expect(cl.Create(ctx, summary)).To(Succeed())
+				DeferCleanup(cl.Delete, summary)
+			})
+
+			By("second reconcile should succeed and collectServiceStatuses finds the ClusterSummary", func() {
+				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&serviceSet)})
+				Expect(err).To(Succeed())
 			})
 		})
 	})

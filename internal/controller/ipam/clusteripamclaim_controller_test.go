@@ -26,6 +26,10 @@ import (
 	kcmv1 "github.com/K0rdent/kcm/api/v1beta1"
 )
 
+func newNamespace() corev1.Namespace {
+	return corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ipam-test-ns-"}}
+}
+
 var _ = Describe("ClusterIPAMClaim Controller", func() {
 	createIPAMClaim := func(resourceName, namespace string) kcmv1.ClusterIPAMClaim {
 		By("Creating a new ClusterIPAMClaim resource")
@@ -74,6 +78,169 @@ var _ = Describe("ClusterIPAMClaim Controller", func() {
 			Expect(k8sClient.Get(ctx, namespacedName, clusterIPAM)).To(Succeed())
 
 			By("Verifying the provider")
+			Expect(clusterIPAM.Spec.Provider).To(Equal(kcmv1.InClusterProviderName))
+		})
+	})
+
+	Context("When reconciling a non-existent ClusterIPAMClaim", func() {
+		It("should return nil without error", func() {
+			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: "does-not-exist", Namespace: "default"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When the claim has a deletion timestamp", func() {
+		const name = "deletion-timestamp-claim"
+		var ns corev1.Namespace
+
+		BeforeEach(func() {
+			ns = newNamespace()
+			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
+
+			claim := createIPAMClaim(name, ns.Name)
+			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())
+
+			claim.Finalizers = []string{"test.io/fake-finalizer"}
+			Expect(k8sClient.Update(ctx, &claim)).To(Succeed())
+
+			Expect(k8sClient.Delete(ctx, &claim)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			existing := &kcmv1.ClusterIPAMClaim{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns.Name}, existing); err == nil {
+				existing.Finalizers = nil
+				Expect(k8sClient.Update(ctx, existing)).To(Succeed())
+			}
+			Expect(k8sClient.Delete(ctx, &ns)).To(Succeed())
+		})
+
+		It("should return nil and not create a ClusterIPAM", func() {
+			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: name, Namespace: ns.Name},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			clusterIPAM := &kcmv1.ClusterIPAM{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns.Name}, clusterIPAM)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+	})
+
+	Context("When the claim has an invalid CIDR", func() {
+		const name = "invalid-cidr-claim"
+		var ns corev1.Namespace
+
+		BeforeEach(func() {
+			ns = newNamespace()
+			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
+
+			claim := kcmv1.ClusterIPAMClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name},
+				Spec: kcmv1.ClusterIPAMClaimSpec{
+					Provider: kcmv1.InClusterProviderName,
+					NodeNetwork: kcmv1.AddressSpaceSpec{
+						CIDR: "not-a-valid-cidr",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			claim := &kcmv1.ClusterIPAMClaim{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name}}
+			Expect(k8sClient.Delete(ctx, claim)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, &ns)).To(Succeed())
+		})
+
+		It("should return nil without creating a ClusterIPAM", func() {
+			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: name, Namespace: ns.Name},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			clusterIPAM := &kcmv1.ClusterIPAM{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: ns.Name}, clusterIPAM)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+	})
+
+	Context("When updateStatus is called with a claim containing an invalid CIDR", func() {
+		const name = "updatestatus-invalid-cidr"
+		var ns corev1.Namespace
+
+		BeforeEach(func() {
+			ns = newNamespace()
+			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
+
+			claim := kcmv1.ClusterIPAMClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name},
+				Spec: kcmv1.ClusterIPAMClaimSpec{
+					Provider: kcmv1.InClusterProviderName,
+					NodeNetwork: kcmv1.AddressSpaceSpec{
+						CIDR: "192.168.1.0/33",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			claim := &kcmv1.ClusterIPAMClaim{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name}}
+			_ = k8sClient.Delete(ctx, claim)
+			Expect(k8sClient.Delete(ctx, &ns)).To(Succeed())
+		})
+
+		It("should persist an InvalidClaimCondition in status", func() {
+			namespacedName := types.NamespacedName{Name: name, Namespace: ns.Name}
+			claim := &kcmv1.ClusterIPAMClaim{}
+			Expect(k8sClient.Get(ctx, namespacedName, claim)).To(Succeed())
+
+			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient}
+			Expect(reconciler.updateStatus(ctx, claim)).To(Succeed())
+
+			updated := &kcmv1.ClusterIPAMClaim{}
+			Expect(k8sClient.Get(ctx, namespacedName, updated)).To(Succeed())
+			Expect(updated.Status.Conditions).To(ContainElement(
+				HaveField("Type", kcmv1.InvalidClaimConditionType),
+			))
+		})
+	})
+
+	Context("When ClusterIPAMRef is already set on the claim", func() {
+		const name = "ref-already-set-claim"
+		var ns corev1.Namespace
+
+		BeforeEach(func() {
+			ns = newNamespace()
+			Expect(k8sClient.Create(ctx, &ns)).To(Succeed())
+
+			claim := createIPAMClaim(name, ns.Name)
+			claim.Spec.ClusterIPAMRef = name
+			Expect(k8sClient.Create(ctx, &claim)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			clusterIPAM := &kcmv1.ClusterIPAM{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name}}
+			_ = k8sClient.Delete(ctx, clusterIPAM)
+			claim := &kcmv1.ClusterIPAMClaim{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns.Name}}
+			Expect(k8sClient.Delete(ctx, claim)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, &ns)).To(Succeed())
+		})
+
+		It("should reconcile without updating the claim and create ClusterIPAM", func() {
+			namespacedName := types.NamespacedName{Name: name, Namespace: ns.Name}
+			reconciler := &ClusterIPAMClaimReconciler{Client: k8sClient}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			clusterIPAM := &kcmv1.ClusterIPAM{}
+			Expect(k8sClient.Get(ctx, namespacedName, clusterIPAM)).To(Succeed())
 			Expect(clusterIPAM.Spec.Provider).To(Equal(kcmv1.InClusterProviderName))
 		})
 	})
