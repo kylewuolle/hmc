@@ -125,26 +125,19 @@ spec:
                             description: InstallOptions are options specific to helm install
                             properties:
                               createNamespace:
-                                default: true
-                                description: Create the release namespace if not present. Defaults to true
+                                description: Create the release namespace if not present. Defaults to false.
                                 type: boolean
                               disableHooks:
                                 default: false
-                                description: |-
-                                  prevent hooks from running during install. If set to true, overrides
-                                  DisableHooks in HelmOptions. Use this one when you want to selective
-                                  disable hooks on install
-                                  Default to false
+                                description: If set to true, prevents hooks from running during install, overriding DisableHooks in HelmOptions.
                                 type: boolean
                               replace:
                                 default: true
-                                description: Replaces if set indicates to replace an older release with this one
+                                description: Replaces if set indicates to replace an older release with this one.
                                 type: boolean
                               takeOwnership:
                                 default: false
-                                description: |-
-                                  if set, install will ignore the check for helm annotations
-                                  and take ownership of the existing resources
+                                description: If set, install will ignore the check for helm annotations and take ownership of existing resources.
                                 type: boolean
                             type: object
                           labels:
