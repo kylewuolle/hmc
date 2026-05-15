@@ -128,16 +128,13 @@ spec:
                                 description: Create the release namespace if not present. Defaults to false.
                                 type: boolean
                               disableHooks:
-                                default: false
-                                description: If set to true, prevents hooks from running during install, overriding DisableHooks in HelmOptions.
+                                description: If set to true, prevents hooks from running during install, overriding DisableHooks in HelmOptions. Defaults to false.
                                 type: boolean
                               replace:
-                                default: true
-                                description: Replaces if set indicates to replace an older release with this one.
+                                description: Replaces if set indicates to replace an older release with this one. Defaults to false.
                                 type: boolean
                               takeOwnership:
-                                default: false
-                                description: If set, install will ignore the check for helm annotations and take ownership of existing resources.
+                                description: If set, install will ignore the check for helm annotations and take ownership of existing resources. Defaults to false.
                                 type: boolean
                             type: object
                           labels:

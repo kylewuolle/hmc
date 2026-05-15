@@ -1210,13 +1210,17 @@ func convertHelmOptions(options *kcmv1.ServiceHelmOptions) *addoncontrollerv1bet
 	}
 
 	if options.InstallOptions != nil {
-		toReturn.InstallOptions = addoncontrollerv1beta1.HelmInstallOptions{
-			Replace:       options.InstallOptions.Replace,
-			DisableHooks:  options.InstallOptions.DisableHooks,
-			TakeOwnership: options.InstallOptions.TakeOwnership,
-		}
 		if options.InstallOptions.CreateNamespace != nil {
 			toReturn.InstallOptions.CreateNamespace = *options.InstallOptions.CreateNamespace
+		}
+		if options.InstallOptions.Replace != nil {
+			toReturn.InstallOptions.Replace = *options.InstallOptions.Replace
+		}
+		if options.InstallOptions.DisableHooks != nil {
+			toReturn.InstallOptions.DisableHooks = *options.InstallOptions.DisableHooks
+		}
+		if options.InstallOptions.TakeOwnership != nil {
+			toReturn.InstallOptions.TakeOwnership = *options.InstallOptions.TakeOwnership
 		}
 	}
 

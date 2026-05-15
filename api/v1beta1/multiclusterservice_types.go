@@ -238,23 +238,20 @@ type HelmInstallOptions struct {
 	// Create the release namespace if not present. Defaults to false.
 	CreateNamespace *bool `json:"createNamespace,omitempty"`
 
-	// +kubebuilder:default:=true
 	// +optional
 
-	// Replaces if set indicates to replace an older release with this one.
-	Replace bool `json:"replace,omitempty"`
+	// Replaces if set indicates to replace an older release with this one. Defaults to false.
+	Replace *bool `json:"replace,omitempty"`
 
-	// +kubebuilder:default:=false
 	// +optional
 
-	// If set to true, prevents hooks from running during install, overriding DisableHooks in HelmOptions.
-	DisableHooks bool `json:"disableHooks,omitempty"`
+	// If set to true, prevents hooks from running during install, overriding DisableHooks in HelmOptions. Defaults to false.
+	DisableHooks *bool `json:"disableHooks,omitempty"`
 
-	// +kubebuilder:default:=false
 	// +optional
 
-	// If set, install will ignore the check for helm annotations and take ownership of existing resources.
-	TakeOwnership bool `json:"takeOwnership,omitempty"`
+	// If set, install will ignore the check for helm annotations and take ownership of existing resources. Defaults to false.
+	TakeOwnership *bool `json:"takeOwnership,omitempty"`
 }
 
 // ServiceSpec contains all the spec related to deployment of services.
