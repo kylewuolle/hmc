@@ -1,0 +1,15 @@
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: ServiceTemplate
+metadata:
+  name: nico-namespaces-0-1-0
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  helm:
+    chartSpec:
+      chart: nico-namespaces
+      version: 0.1.0
+      interval: 10m0s
+      sourceRef:
+        kind: HelmRepository
+        name: kcm-templates

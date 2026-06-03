@@ -1,0 +1,20 @@
+# cert-manager Issuer in the Nico namespace backed by Vault's PKI engine.
+# This will initially fail until vault-configure-job completes; cert-manager
+# retries automatically every few minutes.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.nicoIssuer }}
+  namespace: {{ .Values.nicoNamespace }}
+  labels:
+    {{- include "nico-stack.labels" . | nindent 4 }}
+spec:
+  vault:
+    path: {{ printf "%ssign/%s" .Values.vaultSetup.pkiMount .Values.vaultSetup.pkiRoleName | quote }}
+    server: {{ include "nico-stack.vaultAddr" . | quote }}
+    auth:
+      kubernetes:
+        role: {{ .Values.vaultSetup.certManagerRoleName | quote }}
+        mountPath: {{ printf "/v1/auth/%s" .Values.vaultSetup.kubernetesMountPath | quote }}
+        serviceAccountRef:
+          name: {{ .Values.vaultSetup.certManagerRoleName | quote }}

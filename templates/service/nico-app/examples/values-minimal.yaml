@@ -1,0 +1,79 @@
+## =============================================================================
+## Minimal Values — NICo Bare Metal Manager
+## =============================================================================
+## This is the minimum configuration required to deploy NICo.
+## You MUST set global.image.repository and global.image.tag.
+## See PREREQUISITES.md for required Secrets, ConfigMaps, and operators.
+##
+## Install with: helm install nico ./helm -n nico-system --create-namespace -f values-minimal.yaml
+## =============================================================================
+
+global:
+  ## REQUIRED: Set your container image repository and tag
+  image:
+    repository: ""   # e.g. your-registry.example.com/nico-core
+    tag: ""          # e.g. v2025.12.30
+
+## ---------------------------------------------------------------------------
+## All core services enabled by default — disable any you don't need
+## ---------------------------------------------------------------------------
+
+## nico-api: Core API requires site config at minimum
+nico-api:
+  enabled: true
+  hostname: "nico.example.com"
+  siteConfig:
+    enabled: true
+    nicoApiSiteConfig: |
+      # Site-specific overrides for nico-api-config.toml
+      # At minimum, configure DHCP servers and route servers for your site:
+      # dhcp_servers=["nico-dhcp.nico-system.svc.cluster.local:67"]
+
+## nico-dhcp: Configure subnets and IPs for your environment
+nico-dhcp:
+  enabled: true
+
+## nico-dns: Authoritative DNS for managed machines
+nico-dns:
+  enabled: true
+
+## nico-dsx-exchange-consumer: DSX telemetry consumer
+nico-dsx-exchange-consumer:
+  enabled: true
+
+## nico-hardware-health: Hardware health metrics
+nico-hardware-health:
+  enabled: true
+
+## nico-pxe: PXE boot server
+nico-pxe:
+  enabled: true
+
+## nico-ssh-console-rs: SSH console proxy
+nico-ssh-console-rs:
+  enabled: true
+  ## Loki log collector sidecar — disabled by default.
+  ## Enable if you have a Loki instance at http://loki.loki.svc.cluster.local:3100.
+  # lokiLogCollector:
+  #   enabled: true
+  #   image:
+  #     repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+  #     tag: "0.81.0"
+
+## unbound: Recursive DNS resolver (disabled by default)
+## Enable if your environment does not already provide a recursive DNS
+## resolver with forwarding rules for NICo internal domains.
+# unbound:
+#   enabled: true
+  image:
+    repository: ""   # e.g. your-registry.example.com/unbound
+    tag: ""
+  exporterImage:
+    repository: ""   # e.g. your-registry.example.com/unbound-exporter
+    tag: ""
+  localConfig:
+    forwarders.conf: |
+      forward-zone:
+        name: "."
+        forward-addr: 8.8.8.8
+        forward-addr: 8.8.4.4

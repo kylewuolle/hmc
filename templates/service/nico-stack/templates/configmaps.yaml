@@ -1,0 +1,27 @@
+{{- $ns := .Values.nicoNamespace }}
+# ConfigMap consumed by carbide-api as VAULT_ADDR, VAULT_MOUNT_LOCATION,
+# VAULT_KV_MOUNT_LOCATION, and VAULT_PKI_MOUNT_LOCATION env vars.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-cluster-info
+  namespace: {{ $ns }}
+  labels:
+    {{- include "nico-stack.labels" . | nindent 4 }}
+data:
+  VAULT_SERVICE: {{ include "nico-stack.vaultAddr" . | quote }}
+  FORGE_VAULT_MOUNT: {{ include "nico-stack.stripSlash" .Values.vaultSetup.kvMount | quote }}
+  FORGE_VAULT_PKI_MOUNT: {{ include "nico-stack.stripSlash" .Values.vaultSetup.pkiMount | quote }}
+---
+# ConfigMap consumed by carbide-api as DB_HOST, DB_PORT, DB_NAME env vars.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-system-carbide-database-config
+  namespace: {{ $ns }}
+  labels:
+    {{- include "nico-stack.labels" . | nindent 4 }}
+data:
+  DB_HOST: {{ include "nico-stack.dbHost" . | quote }}
+  DB_PORT: {{ .Values.database.port | quote }}
+  DB_NAME: {{ .Values.database.name | quote }}

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  annotations:
+    helm.sh/resource-policy: keep
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nico
+  annotations:
+    helm.sh/resource-policy: keep

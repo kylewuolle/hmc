@@ -9,3 +9,52 @@ spec:
   config:
     clusterLabels: {}
     clusterAnnotations: {}
+  serviceSpec:
+    services:
+      - template: cert-manager-1-20-2
+        name: cert-manager
+        namespace: cert-manager
+        helmOptions:
+          installOptions:
+            createNamespace: true
+      - template: metallb-0-16-1
+        name: metallb
+        namespace: metallb
+        helmOptions:
+          installOptions:
+            createNamespace: true
+      - template: nico-namespaces-0-1-0
+        name: nico-namespaces
+        namespace: nico-namespaces
+        helmOptions:
+          installOptions:
+            createNamespace: true
+            takeOwnership: true
+      - template: nico-stack-0-1-20
+        name: nico-stack
+        namespace: vault
+        helmOptions:
+          installOptions:
+            createNamespace: false
+        dependsOn:
+          - name: cert-manager
+            namespace: cert-manager
+          - name: metallb
+            namespace: metallb
+          - name: nico-namespaces
+            namespace: nico-namespaces
+      - template: nico-app-0-1-1
+        name: nico-app
+        namespace: nico
+        helmOptions:
+          installOptions:
+            createNamespace: false
+        values: |
+          global:
+            image:
+              repository: kcm-local-registry:5000/nico/nico
+              tag: "0.9.1-amd64"
+              pullPolicy: Never
+        dependsOn:
+          - name: nico-stack
+            namespace: vault
