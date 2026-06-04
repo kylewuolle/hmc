@@ -1,0 +1,22 @@
+{{- if not .Values.devMode }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nico-postgresql-certificate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  commonName: carbide-api-user
+  secretName: nico-postgresql-certificate
+  issuerRef:
+    kind: ClusterIssuer
+    name: nico-issuer
+  dnsNames:
+    - {{ include "nico.postgresHost" . | quote }}
+  ipAddresses:
+    - "127.0.0.1"
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+{{- end }}

@@ -1,4 +1,10 @@
 # ---------------------------------------------------------------------------
+# Dev mode — set to true for local/dev clusters (vault auto-inits, no TLS,
+# no PVC needed). For production this MUST be false.
+# ---------------------------------------------------------------------------
+devMode: true
+
+# ---------------------------------------------------------------------------
 # Network / MetalLB
 # ---------------------------------------------------------------------------
 metallb:
@@ -63,6 +69,12 @@ vault:
   injector:
     enabled: false
   server:
+    dev:
+      # Must match the top-level devMode flag. In dev mode vault auto-inits,
+      # auto-unseals, and uses in-memory storage — no TLS or PVC required.
+      # Production MUST set both devMode: false and this to false.
+      enabled: true
+      devRootToken: "root"
     extraEnvironmentVars:
       VAULT_CACERT: /vault/userconfig/vault-tls/ca.crt
     volumes:
@@ -90,7 +102,8 @@ vault:
         ui = true
         disable_mlock = true
     dataStorage:
-      enabled: false
+      enabled: true
+      size: 1Gi
   # Vault UI is exposed via a separate LoadBalancer Service in this chart
   # (see templates/vault-ui-service.yaml) so the subchart UI service is disabled.
   ui:

@@ -1,0 +1,12 @@
+dependencies:
+- name: vault
+  repository: https://helm.releases.hashicorp.com
+  version: 0.29.1
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 12.12.10
+- name: nico-app
+  repository: ""
+  version: 0.1.1
+digest: sha256:a6203a24e4560b8ca428c771102828eb3b3fcb85e17cbf620e5eb7fab432f188
+generated: "2026-06-04T11:22:03.784520555-07:00"

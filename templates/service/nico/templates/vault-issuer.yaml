@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.nicoIssuer }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  vault:
+    path: {{ printf "%ssign/%s" .Values.vaultSetup.pkiMount .Values.vaultSetup.pkiRoleName | quote }}
+    server: {{ include "nico.vaultAddr" . | quote }}
+    {{- if not .Values.devMode }}
+    # caBundle is the vault TLS CA — only needed when vault serves HTTPS.
+    # vault-configure-job patches this with the actual CA after PKI is configured.
+    caBundle: ""
+    {{- end }}
+    auth:
+      kubernetes:
+        role: {{ .Values.vaultSetup.certManagerRoleName | quote }}
+        mountPath: {{ printf "/v1/auth/%s" .Values.vaultSetup.kubernetesMountPath | quote }}
+        serviceAccountRef:
+          name: {{ .Values.vaultSetup.certManagerRoleName | quote }}

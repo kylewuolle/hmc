@@ -1,0 +1,45 @@
+{{- if not .Values.devMode }}
+# Root CA chain — only needed in prod where vault TLS and PostgreSQL TLS are enabled.
+# In devMode vault uses HTTP and PostgreSQL TLS is disabled, so these issuers are not needed.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: nico-root-issuer
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nico-root-ca
+  namespace: cert-manager
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  isCA: true
+  commonName: Nico Root CA
+  secretName: nico-root-secret
+  usages:
+    - digital signature
+    - cert sign
+    - crl sign
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+  issuerRef:
+    name: nico-root-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: nico-issuer
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: nico-root-secret
+{{- end }}

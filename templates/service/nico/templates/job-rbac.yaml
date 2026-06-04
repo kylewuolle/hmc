@@ -1,66 +1,42 @@
-# ServiceAccount used by vault-init-job and vault-configure-job.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: nico-setup
-  namespace: {{ .Values.nicoNamespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nico-stack.labels" . | nindent 4 }}
+    {{- include "nico.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation
 ---
-# ClusterRole granting the setup jobs access to the resources they patch.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: nico-setup
   labels:
-    {{- include "nico-stack.labels" . | nindent 4 }}
+    {{- include "nico.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation
 rules:
-  # Read root CA from cert-manager namespace
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["nico-root-secret"]
-    verbs: ["get"]
-    # Note: resourceNames filter requires specifying the namespace via ClusterRoleBinding
-  # Manage vault seal-keys secret in vault namespace
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "patch"]
-  # Patch Issuer caBundle in nico namespace after PKI is ready
   - apiGroups: ["cert-manager.io"]
     resources: ["issuers"]
     verbs: ["get", "patch"]
-  # Restart Deployments/StatefulSets after credentials are injected
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets"]
     verbs: ["get", "patch"]
----
-# ServiceAccount in the vault namespace for vault-init-job (runs co-located with vault).
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: nico-setup
-  namespace: vault
-  labels:
-    {{- include "nico-stack.labels" . | nindent 4 }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: nico-setup
   labels:
-    {{- include "nico-stack.labels" . | nindent 4 }}
+    {{- include "nico.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-10"
@@ -68,11 +44,27 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: nico-setup
-    namespace: {{ .Values.nicoNamespace }}
-  - kind: ServiceAccount
-    name: nico-setup
-    namespace: vault
+    namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: nico-setup
+---
+# Vault SA needs system:auth-delegator to validate Kubernetes tokens via TokenReview.
+# Required for both devMode and prod — applied as a pre-install hook.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auth-delegator
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: {{ .Release.Namespace }}

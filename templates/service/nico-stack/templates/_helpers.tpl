@@ -21,10 +21,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-The Vault HTTPS address reachable from within the cluster.
+The Vault address reachable from within the cluster.
+Uses HTTP in devMode (vault dev server has no TLS), HTTPS otherwise.
 */}}
 {{- define "nico-stack.vaultAddr" -}}
+{{- if .Values.devMode -}}
+http://vault.vault.svc.cluster.local:8200
+{{- else -}}
 https://vault.vault.svc.cluster.local:8200
+{{- end -}}
 {{- end }}
 
 {{/*

@@ -23,38 +23,38 @@ spec:
         helmOptions:
           installOptions:
             createNamespace: true
-      - template: nico-namespaces-0-1-0
-        name: nico-namespaces
-        namespace: nico-namespaces
+      - template: local-path-provisioner-0-1-0
+        name: local-path-provisioner
+        namespace: local-path-storage
         helmOptions:
           installOptions:
             createNamespace: true
-            takeOwnership: true
-      - template: nico-stack-0-1-20
-        name: nico-stack
-        namespace: vault
+      - template: nico-0-1-9
+        name: nico
+        namespace: nico
         helmOptions:
           installOptions:
-            createNamespace: false
+            createNamespace: true
+        values: |
+          devMode: true
+          vault:
+            global:
+              tlsDisable: true
+            server:
+              dev:
+                enabled: true
+          postgresql:
+            tls:
+              enabled: false
+          global:
+            image:
+              repository: kcm-local-registry:5000/nico/nico
+              tag: "0.9.1-amd64"
+              pullPolicy: IfNotPresent
         dependsOn:
           - name: cert-manager
             namespace: cert-manager
           - name: metallb
             namespace: metallb
-          - name: nico-namespaces
-            namespace: nico-namespaces
-      - template: nico-app-0-1-1
-        name: nico-app
-        namespace: nico
-        helmOptions:
-          installOptions:
-            createNamespace: false
-        values: |
-          global:
-            image:
-              repository: kcm-local-registry:5000/nico/nico
-              tag: "0.9.1-amd64"
-              pullPolicy: Never
-        dependsOn:
-          - name: nico-stack
-            namespace: vault
+          - name: local-path-provisioner
+            namespace: local-path-storage

@@ -1,0 +1,230 @@
+{{- $setupImage := .Values.vaultSetup.image }}
+{{- $pkiMount := .Values.vaultSetup.pkiMount }}
+{{- $pkiRole := .Values.vaultSetup.pkiRoleName }}
+{{- $pkiPolicy := .Values.vaultSetup.pkiPolicyName }}
+{{- $kvMount := .Values.vaultSetup.kvMount }}
+{{- $kvPolicy := .Values.vaultSetup.kvPolicyName }}
+{{- $k8sKvMount := .Values.vaultSetup.k8sKvMount }}
+{{- $k8sMount := .Values.vaultSetup.kubernetesMountPath }}
+{{- $cmRole := .Values.vaultSetup.certManagerRoleName }}
+{{- $nicoIssuer := .Values.nicoIssuer }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-configure
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-configure
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: nico-setup
+      restartPolicy: OnFailure
+      containers:
+        - name: vault-configure
+          image: {{ $setupImage | quote }}
+          env:
+            - name: VAULT_ADDR
+              value: {{ include "nico.vaultAddr" . | quote }}
+            - name: VAULT_CACERT
+              value: /tmp/vault-ca.crt
+            - name: NICO_NS
+              value: {{ .Release.Namespace | quote }}
+            - name: PKI_MOUNT
+              value: {{ $pkiMount | quote }}
+            - name: PKI_ROLE
+              value: {{ $pkiRole | quote }}
+            - name: PKI_POLICY
+              value: {{ $pkiPolicy | quote }}
+            - name: KV_MOUNT
+              value: {{ $kvMount | quote }}
+            - name: KV_POLICY
+              value: {{ $kvPolicy | quote }}
+            - name: K8S_KV_MOUNT
+              value: {{ $k8sKvMount | quote }}
+            - name: K8S_MOUNT
+              value: {{ $k8sMount | quote }}
+            - name: CM_ROLE
+              value: {{ $cmRole | quote }}
+            - name: NICO_ISSUER
+              value: {{ $nicoIssuer | quote }}
+            - name: DB_HOST
+              value: {{ include "nico.postgresHost" . | quote }}
+            - name: DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: DB_PORT
+              value: {{ .Values.database.port | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              KUBEAPI="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
+              SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              K8S_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+              k8s_get() {
+                curl -sf --cacert "$K8S_CA" -H "Authorization: Bearer $SA_TOKEN" "${KUBEAPI}$1"
+              }
+              k8s_put() {
+                curl -sf --cacert "$K8S_CA" \
+                  -H "Authorization: Bearer $SA_TOKEN" \
+                  -H "Content-Type: application/merge-patch+json" \
+                  -X PATCH "${KUBEAPI}$1" -d "$2"
+              }
+              vault_put() {
+                curl -sf {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}\
+                  -H "X-Vault-Token: $VAULT_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -X PUT "${VAULT_ADDR}/v1/$1" -d "$2"
+              }
+              vault_post() {
+                curl -sf {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}\
+                  -H "X-Vault-Token: $VAULT_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -X POST "${VAULT_ADDR}/v1/$1" -d "$2"
+              }
+              vault_get() {
+                curl -sf {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}\
+                  -H "X-Vault-Token: $VAULT_TOKEN" \
+                  "${VAULT_ADDR}/v1/$1"
+              }
+              mount_exists() {
+                curl -sf {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}\
+                  -H "X-Vault-Token: $VAULT_TOKEN" \
+                  "${VAULT_ADDR}/v1/sys/mounts" \
+                  | jq -e --arg p "$1" 'has($p)' > /dev/null 2>&1
+              }
+              auth_exists() {
+                curl -sf {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}\
+                  -H "X-Vault-Token: $VAULT_TOKEN" \
+                  "${VAULT_ADDR}/v1/sys/auth" \
+                  | jq -e --arg p "$1" 'has($p)' > /dev/null 2>&1
+              }
+
+              echo "[1/9] Extracting Vault CA and waiting for unseal..."
+              k8s_get "/api/v1/namespaces/cert-manager/secrets/nico-root-secret" \
+                | jq -r '.data["ca.crt"]' | base64 -d > /tmp/vault-ca.crt
+
+              {{- if not .Values.devMode }}
+              until [ "$(curl -sf --cacert /tmp/vault-ca.crt \
+                  "${VAULT_ADDR}/v1/sys/seal-status" | jq -r '.sealed')" = "false" ]; do
+                echo "  Vault is sealed, waiting 10s..."
+                sleep 10
+              done
+              {{- end }}
+
+              echo "[2/9] Reading root token..."
+              {{- if .Values.devMode }}
+              VAULT_TOKEN="root"
+              {{- else }}
+              VAULT_TOKEN=$(k8s_get "/api/v1/namespaces/${NICO_NS}/secrets/vault-seal-keys" \
+                | jq -r '.data.rootToken' | base64 -d)
+              {{- end }}
+
+              echo "[3/9] Creating Vault password policies..."
+              vault_put "sys/policies/password/nico-username" \
+                '{"policy":"length = 6\nrule \"charset\" {\n  charset = \"abcdefghijklmnopqrstuvwxyz\"\n}\n"}'
+              vault_put "sys/policies/password/nico-password" \
+                '{"policy":"length = 20\nrule \"charset\" {\n  charset = \"abcdefghijklmnopqrstuvwxyz\"\n  min-chars = 1\n}\nrule \"charset\" {\n  charset = \"ABCDEFGHIJKLMNOPQRSTUVWXYZ\"\n  min-chars = 1\n}\nrule \"charset\" {\n  charset = \"0123456789\"\n  min-chars = 1\n}\n"}'
+
+              gen_password() { vault_get "sys/policies/password/nico-password/generate" | jq -r '.data.password'; }
+              gen_username() { vault_get "sys/policies/password/nico-username/generate" | jq -r '.data.password'; }
+
+              echo "[4/9] Enabling PKI secrets engine at ${PKI_MOUNT}..."
+              mount_exists "${PKI_MOUNT}" || vault_post "sys/mounts/${PKI_MOUNT%/}" \
+                '{"type":"pki","config":{"max_lease_ttl":"87600h"}}'
+
+              {{- if .Values.devMode }}
+              # devMode: generate an internal self-signed root CA for the PKI engine.
+              CA_HTTP=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
+                -o /dev/null -w "%{http_code}" \
+                "${VAULT_ADDR}/v1/${PKI_MOUNT}ca/pem" 2>/dev/null)
+              [ "$CA_HTTP" = "200" ] || vault_post "${PKI_MOUNT}root/generate/internal" \
+                '{"common_name":"Nico PKI Root","ttl":"87600h","key_type":"ec","key_bits":384}'
+              {{- else }}
+              # prodMode: import root CA from cert-manager nico-root-secret.
+              PEM_BUNDLE=$(k8s_get "/api/v1/namespaces/cert-manager/secrets/nico-root-secret" \
+                | jq -r '(.data["tls.crt"] | @base64d) + (.data["tls.key"] | @base64d)')
+              CA_HTTP=$(curl -s --cacert /tmp/vault-ca.crt \
+                -H "X-Vault-Token: $VAULT_TOKEN" \
+                -o /dev/null -w "%{http_code}" \
+                "${VAULT_ADDR}/v1/${PKI_MOUNT}ca/pem" 2>/dev/null)
+              [ "$CA_HTTP" = "200" ] \
+                || vault_post "${PKI_MOUNT}config/ca" \
+                  "{\"pem_bundle\":$(echo -n "$PEM_BUNDLE" | jq -Rs .)}"
+              {{- end }}
+
+              vault_post "${PKI_MOUNT}roles/${PKI_ROLE}" \
+                '{
+                  "allow_any_name":true,"allow_ip_sans":true,"allow_localhost":true,
+                  "allow_glob_domains":true,"allowed_domains":["cluster.local","*.svc","*.svc.cluster.local"],
+                  "allowed_uri_sans":"spiffe://*","client_flag":true,"server_flag":true,
+                  "enforce_hostnames":false,"key_type":"ec","key_bits":384,
+                  "key_usage":["DigitalSignature","KeyAgreement","KeyEncipherment"],
+                  "max_ttl":2592000,"ttl":2592000,"require_cn":false,
+                  "use_csr_common_name":true,"use_csr_sans":true,"issuer_ref":"default"
+                }'
+
+              vault_put "sys/policies/acl/${PKI_POLICY}" \
+                "{\"policy\":\"path \\\"${PKI_MOUNT}sign/${PKI_ROLE}\\\" { capabilities = [\\\"create\\\",\\\"update\\\"] }\\npath \\\"${PKI_MOUNT}issue/${PKI_ROLE}\\\" { capabilities = [\\\"create\\\",\\\"read\\\",\\\"list\\\",\\\"update\\\"] }\\n\"}"
+
+              echo "[5/9] Enabling KV v2 at ${KV_MOUNT}..."
+              mount_exists "${KV_MOUNT}" || vault_post "sys/mounts/${KV_MOUNT%/}" '{"type":"kv","options":{"version":"2"}}'
+              vault_put "sys/policies/acl/${KV_POLICY}" \
+                "{\"policy\":\"path \\\"${KV_MOUNT}*\\\" { capabilities = [\\\"create\\\",\\\"read\\\",\\\"update\\\",\\\"patch\\\",\\\"delete\\\",\\\"list\\\"] }\\n\"}"
+              vault_post "${KV_MOUNT}data/machines/bmc/site/root" \
+                "{\"data\":{\"UsernamePassword\":{\"username\":\"$(gen_username)\",\"password\":\"$(gen_password)\"}}}"
+
+              echo "[6/9] Generating and storing database credentials..."
+              mount_exists "${K8S_KV_MOUNT}" || vault_post "sys/mounts/${K8S_KV_MOUNT%/}" '{"type":"kv","options":{"version":"2"}}'
+              DB_USER=$(gen_username)
+              DB_PASS=$(gen_password)
+              DB_ADMIN_PASS=$(gen_password)
+              vault_post "${K8S_KV_MOUNT}data/db" \
+                "{\"data\":{\"username\":\"$DB_USER\",\"password\":\"$DB_PASS\",\"admin-password\":\"$DB_ADMIN_PASS\"}}"
+
+              DB_URI="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+              k8s_put "/api/v1/namespaces/${NICO_NS}/secrets/forge-system.carbide.forge-pg-cluster.credentials" \
+                "$(jq -n \
+                  --arg u "$(echo -n "$DB_USER" | base64)" \
+                  --arg p "$(echo -n "$DB_PASS" | base64)" \
+                  --arg uri "$(echo -n "$DB_URI" | base64 | tr -d '\n')" \
+                  '{data:{username:$u,password:$p,uri:$uri}}')"
+
+              echo "[7/9] Enabling and configuring Kubernetes auth..."
+              auth_exists "${K8S_MOUNT}" || vault_post "sys/auth/${K8S_MOUNT%/}" \
+                '{"type":"kubernetes","description":"Nico kubernetes auth"}'
+              K8S_HOST=$(curl -sf --cacert "$K8S_CA" \
+                -H "Authorization: Bearer $SA_TOKEN" \
+                "${KUBEAPI}/.well-known/openid-configuration" | jq -r '.issuer')
+              vault_post "auth/${K8S_MOUNT}config" "{\"kubernetes_host\":\"$K8S_HOST\"}"
+              vault_post "auth/${K8S_MOUNT}role/carbide-api" \
+                "{\"token_policies\":\"default,${PKI_POLICY},${KV_POLICY}\",\"audience\":\"$K8S_HOST\",\"bound_service_account_names\":\"carbide-api\",\"bound_service_account_namespaces\":\"$NICO_NS\",\"ttl\":\"1h\"}"
+              vault_post "auth/${K8S_MOUNT}role/${CM_ROLE}" \
+                "{\"token_policies\":\"default,${PKI_POLICY}\",\"audience\":\"vault://${NICO_NS}/${NICO_ISSUER}\",\"bound_service_account_names\":\"${CM_ROLE}\",\"bound_service_account_namespaces\":\"$NICO_NS\",\"ttl\":\"1h\"}"
+
+              {{- if not .Values.devMode }}
+              echo "[8/9] Patching cert-manager Issuer caBundle..."
+              CA_B64=$(k8s_get "/api/v1/namespaces/cert-manager/secrets/nico-root-secret" \
+                | jq -r '.data["ca.crt"]')
+              k8s_put "/api/v1/namespaces/${NICO_NS}/issuers/${NICO_ISSUER}" \
+                "{\"spec\":{\"vault\":{\"caBundle\":\"${CA_B64}\"}}}"
+              {{- else }}
+              echo "[8/9] devMode: skipping Issuer caBundle patch."
+              {{- end }}
+
+              echo "[9/9] Rolling restart of application workloads..."
+              kubectl rollout restart statefulset -n "${NICO_NS}" --selector app.kubernetes.io/name=postgresql 2>/dev/null || true
+              kubectl rollout restart deployment -n "${NICO_NS}" --selector app.kubernetes.io/name=nico 2>/dev/null || true
+
+              echo "vault-configure complete."

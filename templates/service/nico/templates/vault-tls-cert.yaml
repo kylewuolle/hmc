@@ -1,0 +1,34 @@
+{{- if not .Values.devMode }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vault
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+spec:
+  secretName: vault-tls
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+  duration: 2160h
+  renewBefore: 360h
+  isCA: false
+  usages:
+    - digital signature
+    - key encipherment
+  commonName: Nico vault
+  dnsNames:
+    - "*.vault"
+    - "*.vault.{{ .Release.Namespace }}"
+    - "*.vault.{{ .Release.Namespace }}.svc"
+    - "*.vault.{{ .Release.Namespace }}.svc.cluster.local"
+    - "vault.{{ .Release.Namespace }}.svc.cluster.local"
+  ipAddresses:
+    - "127.0.0.1"
+    - {{ .Values.metallb.vaultIP | quote }}
+  issuerRef:
+    name: nico-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+{{- end }}

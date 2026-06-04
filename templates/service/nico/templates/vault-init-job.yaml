@@ -1,16 +1,11 @@
-{{- $ns := .Values.nicoNamespace }}
-{{- $vaultNs := "vault" }}
 {{- $setupImage := .Values.vaultSetup.image }}
-# Post-install Job (weight=0): waits for Vault TLS cert, initializes Vault,
-# stores unseal key + root token in vault-seal-keys Secret, and patches
-# forge-roots with the CA bundle.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: vault-init
-  namespace: {{ $vaultNs }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nico-stack.labels" . | nindent 4 }}
+    {{- include "nico.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
     helm.sh/hook-weight: "0"
@@ -30,11 +25,11 @@ spec:
           image: {{ $setupImage | quote }}
           env:
             - name: VAULT_ADDR
-              value: {{ include "nico-stack.vaultAddr" . | quote }}
+              value: {{ include "nico.vaultAddr" . | quote }}
             - name: VAULT_CACERT
               value: /tmp/vault-ca.crt
             - name: NICO_NS
-              value: {{ $ns | quote }}
+              value: {{ .Release.Namespace | quote }}
           command:
             - /bin/sh
             - -c
@@ -64,7 +59,7 @@ spec:
 
               # --- Step 1: wait for vault-tls secret and extract CA ---
               echo "[1/5] Waiting for vault-tls secret..."
-              until k8s_get "/api/v1/namespaces/vault/secrets/vault-tls" | grep -q '"ca.crt"'; do
+              until k8s_get "/api/v1/namespaces/${NICO_NS}/secrets/vault-tls" | grep -q '"ca.crt"'; do
                 echo "  vault-tls not ready, retrying in 10s..."
                 sleep 10
               done
@@ -75,7 +70,7 @@ spec:
 
               # --- Step 2: wait for Vault to respond ---
               echo "[2/5] Waiting for Vault API..."
-              until VAULT_HTTP=$(curl -s --cacert /tmp/vault-ca.crt --max-time 5 \
+              until VAULT_HTTP=$(curl -s {{ if .Values.devMode }}{{ else }}--cacert /tmp/vault-ca.crt {{ end }}--max-time 5 \
                   -o /dev/null -w "%{http_code}" \
                   "${VAULT_ADDR}/v1/sys/health" 2>/dev/null) && \
                   echo "$VAULT_HTTP" | grep -qE "^(200|429|472|473|501|503)$"; do
@@ -94,7 +89,7 @@ spec:
                   "${VAULT_ADDR}/v1/sys/seal-status" | jq -r '.sealed')
                 if [ "$SEALED" = "true" ]; then
                   echo "  Vault is sealed — fetching stored unseal key..."
-                  UNSEAL_KEY=$(k8s_get "/api/v1/namespaces/vault/secrets/vault-seal-keys" \
+                  UNSEAL_KEY=$(k8s_get "/api/v1/namespaces/${NICO_NS}/secrets/vault-seal-keys" \
                     | jq -r '.data.unsealKey' | base64 -d)
                   if [ -z "$UNSEAL_KEY" ]; then
                     echo "  ERROR: unseal key not found in vault-seal-keys secret" >&2
@@ -112,7 +107,6 @@ spec:
                   echo "  Vault unsealed."
                 fi
               else
-                # --- Step 4: initialize ---
                 echo "[3/5] Initializing Vault..."
                 INIT_JSON=$(curl -sf --cacert /tmp/vault-ca.crt -X PUT \
                   "${VAULT_ADDR}/v1/sys/init" \
@@ -121,18 +115,16 @@ spec:
                 UNSEAL_KEY=$(echo "$INIT_JSON" | jq -r '.keys_base64[0]')
                 ROOT_TOKEN=$(echo "$INIT_JSON" | jq -r '.root_token')
 
-                # Store seal keys — POST to create, PATCH if already exists (no delete permission)
                 echo "[4/5] Storing seal keys..."
                 UK="$(echo -n "$UNSEAL_KEY" | base64 | tr -d '\n')"
                 RT="$(echo -n "$ROOT_TOKEN" | base64 | tr -d '\n')"
-                k8s_post "/api/v1/namespaces/vault/secrets" \
+                k8s_post "/api/v1/namespaces/${NICO_NS}/secrets" \
                   "$(jq -n --arg uk "$UK" --arg rt "$RT" \
-                    '{apiVersion:"v1",kind:"Secret",metadata:{name:"vault-seal-keys",namespace:"vault"},type:"Opaque",data:{unsealKey:$uk,rootToken:$rt}}')" \
+                    '{apiVersion:"v1",kind:"Secret",metadata:{name:"vault-seal-keys",namespace:"'"${NICO_NS}"'"},type:"Opaque",data:{unsealKey:$uk,rootToken:$rt}}')" \
                   2>/dev/null \
-                  || k8s_put "/api/v1/namespaces/vault/secrets/vault-seal-keys" \
+                  || k8s_put "/api/v1/namespaces/${NICO_NS}/secrets/vault-seal-keys" \
                     "$(jq -n --arg uk "$UK" --arg rt "$RT" '{data:{unsealKey:$uk,rootToken:$rt}}')"
 
-                # Unseal
                 curl -sf --cacert /tmp/vault-ca.crt -X PUT \
                   "${VAULT_ADDR}/v1/sys/unseal" \
                   -H "Content-Type: application/json" \
@@ -142,8 +134,8 @@ spec:
               echo "[3/5] devMode: Vault auto-initialized and unsealed — skipping init/unseal."
               {{- end }}
 
-              # --- Step 5: patch CA bundle into both forge-roots and nico-roots ---
-              echo "[5/5] Patching forge-roots and nico-roots secrets with CA bundle..."
+              # --- Step 5: patch CA bundle into forge-roots and nico-roots ---
+              echo "[5/5] Patching CA bundle into secrets..."
               CA_B64=$(k8s_get "/api/v1/namespaces/cert-manager/secrets/nico-root-secret" \
                 | jq -r '.data["ca.crt"]')
               k8s_put "/api/v1/namespaces/${NICO_NS}/secrets/forge-roots" \

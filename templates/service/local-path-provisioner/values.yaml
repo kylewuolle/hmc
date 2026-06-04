@@ -1,0 +1,15 @@
+image:
+  repository: docker.io/kindest/local-path-provisioner
+  tag: v20241212-8ac705d0
+  pullPolicy: IfNotPresent
+
+helperImage:
+  repository: docker.io/kindest/local-path-helper
+  tag: v20241212-8ac705d0
+
+storageClass:
+  name: standard
+  default: true
+  reclaimPolicy: Delete
+
+provisionerPath: /var/local-path-provisioner

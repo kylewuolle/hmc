@@ -1,0 +1,37 @@
+{{- $roleName := .Values.vaultSetup.certManagerRoleName }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $roleName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $roleName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    resourceNames: [{{ $roleName | quote }}]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $roleName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nico.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager
+    namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $roleName }}
