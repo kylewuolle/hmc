@@ -9,3 +9,31 @@ spec:
       {{- with .Values.k0s.workerArgs }}
       args: {{ toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.k0s.insecureRegistries }}
+      files:
+        - path: /etc/k0s/containerd.toml
+          permissions: "0644"
+          content: |
+            imports = ["/run/k0s/containerd-cri.toml", "/etc/k0s/containerd.d/*.toml"]
+            version = 2
+        - path: /etc/k0s/containerd.d/insecure-registries.toml
+          permissions: "0644"
+          content: |
+            version = 2
+
+            [plugins."io.containerd.grpc.v1.cri".registry]
+              config_path = "/etc/k0s/certs.d"
+
+            [plugins."io.containerd.cri.v1.images".registry]
+              config_path = "/etc/k0s/certs.d"
+        {{- range .Values.k0s.insecureRegistries }}
+        - path: /etc/k0s/certs.d/{{ .host }}/hosts.toml
+          permissions: "0644"
+          content: |
+            server = "http://{{ .host }}"
+
+            [host."http://{{ .host }}"]
+              capabilities = ["pull", "resolve", "push"]
+              skip_verify = true
+        {{- end }}
+      {{- end }}
