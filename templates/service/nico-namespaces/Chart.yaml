@@ -1,5 +1,0 @@
-apiVersion: v2
-name: nico-namespaces
-description: Creates the nico and vault namespaces required by nico-stack.
-type: application
-version: 0.1.0

@@ -69,8 +69,7 @@ spec:
             {{- if not $global.registry }}
             repository:
               url: https://kube-vip.github.io/helm-charts
-            {{- end }}
-            {{- if $global.registryCredentialSecret }}
+            {{- else if $global.registryCredentialSecret }}
             repository:
               configFrom:
                 secretRef:
@@ -120,8 +119,7 @@ spec:
             {{- if not $global.registry }}
             repository:
               url: https://kubernetes.github.io/cloud-provider-vsphere
-            {{- end }}
-            {{- if $global.registryCredentialSecret }}
+            {{- else if $global.registryCredentialSecret }}
             repository:
               configFrom:
                 secretRef:

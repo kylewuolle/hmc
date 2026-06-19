@@ -85,8 +85,7 @@ spec:
           {{- if not $global.registry }}
           repository:
             url: https://charts.mirantis.com
-          {{- end }}
-          {{- if $global.registryCredentialSecret }}
+          {{- else if $global.registryCredentialSecret }}
           repository:
             configFrom:
               secretRef:
@@ -126,8 +125,7 @@ spec:
           {{- if not $global.registry }}
           repository:
             url: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
-          {{- end }}
-          {{- if $global.registryCredentialSecret }}
+          {{- else if $global.registryCredentialSecret }}
           repository:
             configFrom:
               secretRef:

@@ -4,11 +4,24 @@ metadata:
   name: docker-${CLUSTER_NAME_SUFFIX}
   namespace: ${NAMESPACE}
 spec:
-  template: docker-hosted-cp-1-0-10
+  template: docker-hosted-cp-1-0-11
   credential: docker-stub-credential
   config:
     clusterLabels: {}
     clusterAnnotations: {}
+    k0s:
+      insecureRegistries:
+        - host: kcm-local-registry:5000
+      workerArgs:
+        - "--cri-socket=remote:unix:///run/containerd/containerd.sock"
+      extraWorkerFiles:
+        - path: /etc/containerd/certs.d/kcm-local-registry:5000/hosts.toml
+          content: |
+            server = "http://kcm-local-registry:5000"
+
+            [host."http://kcm-local-registry:5000"]
+              capabilities = ["pull", "resolve", "push"]
+              skip_verify = true
   serviceSpec:
     services:
       - template: cert-manager-1-20-2
@@ -29,7 +42,8 @@ spec:
         helmOptions:
           installOptions:
             createNamespace: true
-      - template: nico-0-1-9
+      - template: nico-0-1-17
+       # templateChain: nico-chain
         name: nico
         namespace: nico
         helmOptions:
@@ -37,6 +51,12 @@ spec:
             createNamespace: true
         values: |
           devMode: true
+          global:
+            devMode: true
+            image:
+              repository: kcm-local-registry:5000/nico/nico
+              tag: "0.9.1-amd64"
+              pullPolicy: IfNotPresent
           vault:
             global:
               tlsDisable: true
@@ -46,11 +66,13 @@ spec:
           postgresql:
             tls:
               enabled: false
-          global:
-            image:
-              repository: kcm-local-registry:5000/nico/nico
-              tag: "0.9.1-amd64"
-              pullPolicy: IfNotPresent
+          nico-app:
+            nico-pxe:
+              enabled: true
+              bootArtifactContainers:
+                - name: boot-artifacts-x86-64
+                  image: kcm-local-registry:5000/boot-artifacts-x86_64:effd786
+                  command: ["sh", "-c", "cp -r /x86_64 /boot-artifacts/blobs/internal"]
         dependsOn:
           - name: cert-manager
             namespace: cert-manager

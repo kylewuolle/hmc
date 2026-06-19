@@ -36,4 +36,18 @@ spec:
               capabilities = ["pull", "resolve", "push"]
               skip_verify = true
         {{- end }}
+        {{- range .Values.k0s.extraWorkerFiles }}
+        - path: {{ .path }}
+          permissions: {{ .permissions | default "0644" | quote }}
+          content: |
+            {{- .content | nindent 12 }}
+        {{- end }}
+      {{- else if .Values.k0s.extraWorkerFiles }}
+      files:
+        {{- range .Values.k0s.extraWorkerFiles }}
+        - path: {{ .path }}
+          permissions: {{ .permissions | default "0644" | quote }}
+          content: |
+            {{- .content | nindent 12 }}
+        {{- end }}
       {{- end }}

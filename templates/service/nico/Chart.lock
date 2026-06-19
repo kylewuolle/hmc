@@ -7,6 +7,6 @@ dependencies:
   version: 12.12.10
 - name: nico-app
   repository: ""
-  version: 0.1.1
-digest: sha256:a6203a24e4560b8ca428c771102828eb3b3fcb85e17cbf620e5eb7fab432f188
-generated: "2026-06-04T11:22:03.784520555-07:00"
+  version: 0.1.4
+digest: sha256:7de972ea612bdd168c6e1deda248466e51fde5062e2a7ae37d3d3712cbbafcda
+generated: "2026-06-18T11:10:00.000000000-07:00"

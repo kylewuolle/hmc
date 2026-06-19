@@ -1,2 +1,0 @@
-{{- /* Namespaces are created by the nico-namespaces service (a dependsOn prerequisite).
-       Nothing to render here; file kept to document the dependency. */ -}}

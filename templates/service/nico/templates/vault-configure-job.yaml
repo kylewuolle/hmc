@@ -187,9 +187,16 @@ spec:
 
               echo "[6/9] Generating and storing database credentials..."
               mount_exists "${K8S_KV_MOUNT}" || vault_post "sys/mounts/${K8S_KV_MOUNT%/}" '{"type":"kv","options":{"version":"2"}}'
+              {{- if .Values.devMode }}
+              # devMode: use static Bitnami PostgreSQL credentials — no dynamic user creation.
+              DB_USER={{ .Values.postgresql.auth.username | quote }}
+              DB_PASS={{ .Values.postgresql.auth.password | quote }}
+              DB_ADMIN_PASS={{ .Values.postgresql.auth.postgresPassword | quote }}
+              {{- else }}
               DB_USER=$(gen_username)
               DB_PASS=$(gen_password)
               DB_ADMIN_PASS=$(gen_password)
+              {{- end }}
               vault_post "${K8S_KV_MOUNT}data/db" \
                 "{\"data\":{\"username\":\"$DB_USER\",\"password\":\"$DB_PASS\",\"admin-password\":\"$DB_ADMIN_PASS\"}}"
 

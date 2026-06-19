@@ -1,22 +1,26 @@
 # ---------------------------------------------------------------------------
-# Dev mode — override to true in dev ClusterDeployments (docker-clusterdeployment.yaml).
+# Dev mode — override to true in dev ClusterDeployments
 # Default is false (production-safe). When true: vault auto-inits on HTTP, no TLS,
 # static PostgreSQL credentials, vault-forge-issuer uses HTTP.
 # ---------------------------------------------------------------------------
 devMode: false
 
-# ---------------------------------------------------------------------------
-# Network / MetalLB subchart
-# ---------------------------------------------------------------------------
+global:
+  devMode: false
+  imagePullSecrets: []
+
+imagePullSecret:
+  name: ""
+  registry: ""
+  username: ""
+  password: ""
+
+
 metallb:
-  # CIDR for the MetalLB IPAddressPool
   ipAddressPool: "172.31.0.1/24"
-  # Static VIP for the Vault UI LoadBalancer Service
   vaultIP: "172.31.0.82"
 
-# ---------------------------------------------------------------------------
-# Vault setup jobs (paths, roles, policies)
-# ---------------------------------------------------------------------------
+
 vaultSetup:
   image: alpine/k8s:1.31.4
   kubernetesMountPath: kubernetes/
@@ -32,39 +36,28 @@ nicoIssuer: vault-forge-issuer
 
 sshConsoleHostKey: ""
 
-# ---------------------------------------------------------------------------
-# Database
-# ---------------------------------------------------------------------------
+
 database:
   name: nico
   pvSize: 5G
   port: "5432"
 
-# ---------------------------------------------------------------------------
-# Vault subchart
-# ---------------------------------------------------------------------------
+
 vault:
   enabled: true
   fullnameOverride: vault
   global:
     enabled: true
-    # Prod default: false (HTTPS readiness probe, TLS cert mounts).
-    # Override to true in devMode (vault dev server serves HTTP only).
     tlsDisable: false
   injector:
     enabled: false
   server:
     dev:
-      # Prod default: false. Override to true in devMode (auto-init, root token "root",
-      # in-memory storage — never use in production).
       enabled: false
       devRootToken: "root"
     standalone:
       enabled: true
       config: |
-        # devMode: minimal config — vault dev server ignores this block entirely.
-        # Production (devMode: false): add listener with TLS, set storage backend,
-        # and configure seal (e.g. awskms/gcpckms for auto-unseal).
         storage "file" {
           path = "/vault/data"
         }
@@ -76,18 +69,12 @@ vault:
   ui:
     enabled: false
 
-# ---------------------------------------------------------------------------
-# PostgreSQL subchart (Bitnami)
-# ---------------------------------------------------------------------------
 postgresql:
   enabled: true
   fullnameOverride: nico-postgresql
   image:
     repository: bitnamilegacy/postgresql
   auth:
-    # devMode: static dev credentials. vault-configure-job patches these with Vault-generated
-    # values post-install. For production set devMode: false and leave these empty — they will
-    # be populated by vault-configure-job from Vault's password policies.
     postgresPassword: "devpassword"
     database: nico
     username: "nico"
@@ -100,8 +87,6 @@ postgresql:
     ports:
       postgresql: "5432"
   tls:
-    # Prod default: true (cert signed by vault-forge-issuer, configured by vault-configure-job).
-    # Override to false in devMode — the cert isn't available until post-install.
     enabled: true
     certificatesSecret: nico-postgresql-certificate
     certFilename: tls.crt
@@ -112,9 +97,6 @@ postgresql:
       pullPolicy: IfNotPresent
       repository: bitnamilegacy/os-shell
 
-# ---------------------------------------------------------------------------
-# NICo application subchart
-# ---------------------------------------------------------------------------
 nico-app:
   enabled: true
   global:
