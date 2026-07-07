@@ -128,7 +128,7 @@ func (r *ServiceSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	rgnClient, err := getRegionalClient(ctx, r.Client, serviceSet, r.SystemNamespace)
+	rgnClient, regionName, err := getRegionalClient(ctx, r.Client, serviceSet, r.SystemNamespace)
 	if err != nil {
 		l.Error(err, "failed to get regional client")
 		return ctrl.Result{}, err
@@ -204,7 +204,7 @@ func (r *ServiceSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// first we'll ensure the profile exists and up-to-date
-	if err = r.ensureProfile(ctx, rgnClient, serviceSet); err != nil {
+	if err = r.ensureProfile(ctx, rgnClient, regionName, serviceSet); err != nil {
 		conditionOldState := apimeta.FindStatusCondition(clone.Status.Conditions, kcmv1.ServiceSetProfileCondition)
 		conditionNewState := apimeta.FindStatusCondition(serviceSet.Status.Conditions, kcmv1.ServiceSetProfileCondition)
 		// we'll emit ServiceSetEnsureProfileFailedEvent warning
@@ -398,7 +398,7 @@ func (r *ServiceSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // ensureProfile ensures that a [github.com/projectsveltos/addon-controller/api/v1beta1.Profile]
 // object exists for a given [github.com/K0rdent/kcm/api/v1beta1.ServiceSet].
-func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient client.Client, serviceSet *kcmv1.ServiceSet) error {
+func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient client.Client, regionName string, serviceSet *kcmv1.ServiceSet) error {
 	start := time.Now()
 	l := ctrl.LoggerFrom(ctx)
 	l.Info("Ensuring ProjectSveltos Profile")
@@ -447,7 +447,7 @@ func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient clie
 			return fmt.Errorf("failed to create or update ClusterProfile: %w", err)
 		}
 	} else {
-		if err = r.createOrUpdateProfile(ctx, rgnClient, serviceSet, spec); err != nil {
+		if err = r.createOrUpdateProfile(ctx, rgnClient, regionName, serviceSet, spec); err != nil {
 			return fmt.Errorf("failed to create or update Profile: %w", err)
 		}
 	}
@@ -458,7 +458,7 @@ func (r *ServiceSetReconciler) ensureProfile(ctx context.Context, rgnClient clie
 	return nil
 }
 
-func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClient client.Client, serviceSet *kcmv1.ServiceSet, spec *addoncontrollerv1beta1.Spec) error {
+func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClient client.Client, regionName string, serviceSet *kcmv1.ServiceSet, spec *addoncontrollerv1beta1.Spec) error {
 	ownerReference := metav1.NewControllerRef(serviceSet, kcmv1.GroupVersion.WithKind(kcmv1.ServiceSetKind))
 
 	profile := new(addoncontrollerv1beta1.Profile)
@@ -481,7 +481,9 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 		profile.Labels = map[string]string{
 			kcmv1.KCMManagedLabelKey: kcmv1.KCMManagedLabelValue,
 		}
-		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
+		if regionName == "" {
+			profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
+		}
 		profile.Spec = *spec
 		if err = rgnClient.Create(ctx, profile); err != nil {
 			return fmt.Errorf("failed to create Profile for ServiceSet %s: %w", serviceSet.Name, err)
@@ -490,7 +492,9 @@ func (*ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnClien
 	// we need to update it. Make sure that the empty values in `spec`
 	// are defaulted otherwise comparison will always return false.
 	case annotationsUpdated || !equality.Semantic.DeepEqual(profile.Spec, *spec):
-		profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
+		if regionName == "" {
+			profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
+		}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
 			return fmt.Errorf("failed to update Profile for ServiceSet %s: %w", serviceSet.Name, err)
@@ -1550,9 +1554,17 @@ func conditionReasonChanged(conditionOldState, conditionNewState *metav1.Conditi
 
 // getRegionalClient returns the kubernetes client for the cluster where
 // serviceSet's workload runs: the local client cl for self-managed (empty
-// .spec.cluster) ServiceSets, or the regional client otherwise.
-func getRegionalClient(ctx context.Context, cl client.Client, serviceSet *kcmv1.ServiceSet, systemNamespace string) (client.Client, error) {
+// .spec.cluster) ServiceSets, or the regional client otherwise. The returned
+// region name is empty when the client targets the management cluster.
+func getRegionalClient(ctx context.Context, cl client.Client, serviceSet *kcmv1.ServiceSet, systemNamespace string) (client.Client, string, error) {
 	return resolveRegionalClient(ctx, cl, serviceSet, systemNamespace, nil)
+}
+
+// regionalClientEntry pairs a resolved client with the name of the region it
+// targets ("" for the management cluster).
+type regionalClientEntry struct {
+	client     client.Client
+	regionName string
 }
 
 // resolveRegionalClient is the cache-aware variant of [getRegionalClient].
@@ -1564,30 +1576,30 @@ func resolveRegionalClient(
 	cl client.Client,
 	serviceSet *kcmv1.ServiceSet,
 	systemNamespace string,
-	cache map[client.ObjectKey]client.Client,
-) (client.Client, error) {
+	cache map[client.ObjectKey]regionalClientEntry,
+) (client.Client, string, error) {
 	if serviceSet.Spec.Cluster == "" {
 		// ServiceSet that self-manages the management cluster has no
 		// matching ClusterDeployment, so the local client is the answer
-		return cl, nil
+		return cl, "", nil
 	}
 
 	clusterKey := client.ObjectKey{Namespace: serviceSet.Namespace, Name: serviceSet.Spec.Cluster}
 	if cache != nil {
-		if c, ok := cache[clusterKey]; ok {
-			return c, nil
+		if e, ok := cache[clusterKey]; ok {
+			return e.client, e.regionName, nil
 		}
 	}
 
 	cd := new(kcmv1.ClusterDeployment)
 	if err := cl.Get(ctx, clusterKey, cd); err != nil {
-		return nil, fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterKey, err)
+		return nil, "", fmt.Errorf("failed to get ClusterDeployment %s: %w", clusterKey, err)
 	}
 
 	cred := new(kcmv1.Credential)
 	credKey := client.ObjectKey{Namespace: cd.Namespace, Name: cd.Spec.Credential}
 	if err := cl.Get(ctx, credKey, cred); err != nil {
-		return nil, fmt.Errorf("failed to get Credential %s: %w", credKey, err)
+		return nil, "", fmt.Errorf("failed to get Credential %s: %w", credKey, err)
 	}
 
 	rgn := cl
@@ -1595,15 +1607,15 @@ func resolveRegionalClient(
 		var err error
 		rgn, err = kubeutil.GetRegionalClientByRegionName(ctx, cl, systemNamespace, cred.Spec.Region, schemeutil.GetRegionalSchemeWithSveltos)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get regional client for region %s: %w", cred.Spec.Region, err)
+			return nil, "", fmt.Errorf("failed to get regional client for region %s: %w", cred.Spec.Region, err)
 		}
 	}
 
 	if cache != nil {
-		cache[clusterKey] = rgn
+		cache[clusterKey] = regionalClientEntry{client: rgn, regionName: cred.Spec.Region}
 	}
 
-	return rgn, nil
+	return rgn, cred.Spec.Region, nil
 }
 
 func clusterReference(serviceSet *kcmv1.ServiceSet) *corev1.ObjectReference {

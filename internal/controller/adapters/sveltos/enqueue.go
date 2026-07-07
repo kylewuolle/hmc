@@ -42,7 +42,7 @@ func enqueueClusterSummary(cl client.Client, systemNamespace string) pollerutil.
 		logger.V(1).Info("Listing ServiceSet objects", "service_set_count", len(serviceSetList.Items))
 
 		// cluster object key -> regional client, reused within a single tick
-		rgnClients := make(map[client.ObjectKey]client.Client)
+		rgnClients := make(map[client.ObjectKey]regionalClientEntry)
 
 		out := make([]*kcmv1.ServiceSet, 0, len(serviceSetList.Items))
 		for i := range serviceSetList.Items {
@@ -52,7 +52,7 @@ func enqueueClusterSummary(cl client.Client, systemNamespace string) pollerutil.
 				continue
 			}
 
-			rgnClient, err := resolveRegionalClient(ctx, cl, serviceSet, systemNamespace, rgnClients)
+			rgnClient, _, err := resolveRegionalClient(ctx, cl, serviceSet, systemNamespace, rgnClients)
 			if err != nil {
 				logger.V(1).Error(err, "failed to get regional client", "service_set", client.ObjectKeyFromObject(serviceSet))
 				continue

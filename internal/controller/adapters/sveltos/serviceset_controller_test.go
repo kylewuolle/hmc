@@ -993,6 +993,66 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 			})
 		})
 	})
+
+	Context("Profile owner references", func() {
+		var profileSpec addoncontrollerv1beta1.Spec
+
+		BeforeEach(func() {
+			profileSpec = addoncontrollerv1beta1.Spec{
+				SyncMode: addoncontrollerv1beta1.SyncModeContinuous,
+			}
+		})
+
+		It("should set the controller owner reference on the Profile when no region is in play", func() {
+			By("creating the Profile", func() {
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, emptyString, &serviceSet, &profileSpec)).To(Succeed())
+				profile = addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(client.IgnoreNotFound(cl.Delete(ctx, &profile))).To(Succeed())
+				})
+				Expect(profile.OwnerReferences).To(HaveLen(1))
+				Expect(profile.OwnerReferences[0]).To(SatisfyAll(
+					HaveField("Kind", kcmv1.ServiceSetKind),
+					HaveField("Name", serviceSet.Name),
+					HaveField("UID", serviceSet.UID),
+					HaveField("Controller", HaveValue(BeTrue())),
+				))
+			})
+
+			By("updating the Profile", func() {
+				updatedSpec := profileSpec
+				updatedSpec.StopMatchingBehavior = addoncontrollerv1beta1.LeavePolicies
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, emptyString, &serviceSet, &updatedSpec)).To(Succeed())
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
+				Expect(profile.Spec.StopMatchingBehavior).To(Equal(addoncontrollerv1beta1.LeavePolicies))
+				Expect(profile.OwnerReferences).To(HaveLen(1))
+			})
+		})
+
+		It("should not set owner references on the Profile when the ServiceSet targets a region", func() {
+			const regionName = "test-region"
+
+			By("creating the Profile", func() {
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, regionName, &serviceSet, &profileSpec)).To(Succeed())
+				profile = addoncontrollerv1beta1.Profile{}
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(client.IgnoreNotFound(cl.Delete(ctx, &profile))).To(Succeed())
+				})
+				Expect(profile.OwnerReferences).To(BeEmpty())
+			})
+
+			By("updating the Profile", func() {
+				updatedSpec := profileSpec
+				updatedSpec.StopMatchingBehavior = addoncontrollerv1beta1.LeavePolicies
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, regionName, &serviceSet, &updatedSpec)).To(Succeed())
+				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
+				Expect(profile.Spec.StopMatchingBehavior).To(Equal(addoncontrollerv1beta1.LeavePolicies))
+				Expect(profile.OwnerReferences).To(BeEmpty())
+			})
+		})
+	})
 })
 
 func prepareStateManagementProvider() kcmv1.StateManagementProvider {
