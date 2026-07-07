@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	clusterapiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -537,20 +538,20 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 	kcmReleaseName := config.KCMHelmReleaseName()
 	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CRDs {
 		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmReleaseName})
-		requeue, err = r.removeCRDsWithSelector(ctx, sel)
-		if err != nil || requeue {
-			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+		if err := r.removeCRDsWithSelector(ctx, sel); err != nil {
+			l.Error(err, "removing k0rdent CRDs")
+			return ctrl.Result{}, err
 		}
 	}
 
 	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CAPIProviderCRDs {
-		req, err := labels.NewRequirement(kcmv1.CAPIProviderLabelKey, selection.Exists, nil)
+		req, err := labels.NewRequirement(clusterapiv1.ProviderNameLabel, selection.Exists, nil)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		requeue, err = r.removeCRDsWithSelector(ctx, labels.NewSelector().Add(*req))
-		if err != nil || requeue {
-			return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, err
+		if err := r.removeCRDsWithSelector(ctx, labels.NewSelector().Add(*req)); err != nil {
+			l.Error(err, "removing CAPI provider CRDs")
+			return ctrl.Result{}, err
 		}
 	}
 	r.eventf(management, "RemovedManagement", "All KCM management components were removed")
@@ -965,28 +966,29 @@ func (*ManagementReconciler) warnf(mgmt *kcmv1.Management, reason, message strin
 	record.Warnf(mgmt, nil, reason, "Reconcile", message, args...)
 }
 
-// managementCRDName is the API server object name of the Management CRD.
-const managementCRDName = "managements.k0rdent.mirantis.com"
-
-func (r *ManagementReconciler) removeCRDsWithSelector(ctx context.Context, selector labels.Selector) (bool, error) {
+// removeCRDsWithSelector issues deletion of all CRDs matching the given selector
+// without waiting for the deletion to complete: CRD termination is asynchronous
+// and requires no further action from this controller. In particular, the
+// Management CRD itself finishes terminating only after the Management object's
+// finalizer is removed and the object ceases to exist.
+func (r *ManagementReconciler) removeCRDsWithSelector(ctx context.Context, selector labels.Selector) error {
 	l := ctrl.LoggerFrom(ctx)
-	l.Info("Ensuring CRDs are removed")
-	gvk := apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinition")
-	listOpts := &client.ListOptions{
-		LabelSelector: selector,
-	}
-	if requeue, err := kubeutil.EnsureDeleteAllOf(ctx, r.Client, gvk, listOpts, managementCRDName); err != nil {
-		l.Error(err, "Not all CRDs are removed")
-		return requeue, err
+	l.Info("Removing CRDs", "selector", selector.String())
+
+	itemsList := new(metav1.PartialObjectMetadataList)
+	itemsList.SetGroupVersionKind(apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
+	if err := r.Client.List(ctx, itemsList, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return fmt.Errorf("failed to list CRDs: %w", err)
 	}
 
-	mgmtCRD := &apiextv1.CustomResourceDefinition{}
-	if err := r.Client.Get(ctx, client.ObjectKey{Name: managementCRDName}, mgmtCRD); err == nil {
-		if selector.Matches(labels.Set(mgmtCRD.Labels)) && mgmtCRD.DeletionTimestamp.IsZero() {
-			if err := r.Client.Delete(ctx, mgmtCRD); client.IgnoreNotFound(err) != nil {
-				return true, err
-			}
+	var errs error
+	for _, item := range itemsList.Items {
+		if !item.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if err := r.Client.Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
+			errs = errors.Join(errs, fmt.Errorf("failed to delete CRD %s: %w", item.Name, err))
 		}
 	}
-	return false, nil
+	return errs
 }

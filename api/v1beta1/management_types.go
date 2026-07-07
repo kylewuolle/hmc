@@ -32,8 +32,6 @@ const (
 
 	K0rdentManagementClusterLabelKey   = "k0rdent.mirantis.com/management-cluster"
 	K0rdentManagementClusterLabelValue = "true"
-
-	CAPIProviderLabelKey = "cluster.x-k8s.io/provider"
 )
 
 // ManagementSpec defines the desired state of Management

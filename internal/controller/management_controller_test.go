@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -527,19 +526,6 @@ var _ = Describe("Management Controller", func() {
 			}
 		}
 
-		pollRemoveCRDs := func(r *ManagementReconciler, sel labels.Selector) func() error {
-			return func() error {
-				requeue, err := r.removeCRDsWithSelector(ctx, sel)
-				if err != nil {
-					return err
-				}
-				if requeue {
-					return errors.New("still waiting for CRD removal")
-				}
-				return nil
-			}
-		}
-
 		It("deletes CRDs matching the k0rdent label selector", func() {
 			crd := newTestCRD("kcm-cleanup-test.io", map[string]string{
 				kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName,
@@ -550,7 +536,7 @@ var _ = Describe("Management Controller", func() {
 
 			r := &ManagementReconciler{Client: k8sClient}
 			sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
-			Eventually(pollRemoveCRDs(r, sel)).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			Expect(r.removeCRDsWithSelector(ctx, sel)).To(Succeed())
 
 			Eventually(func() bool {
 				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{}))
@@ -559,17 +545,17 @@ var _ = Describe("Management Controller", func() {
 
 		It("deletes CRDs matching the CAPI provider label selector", func() {
 			crd := newTestCRD("capi-cleanup-test.io", map[string]string{
-				kcmv1.CAPIProviderLabelKey: "infrastructure-test",
+				clusterapiv1.ProviderNameLabel: "infrastructure-test",
 			})
 			Expect(k8sClient.Create(ctx, crd)).To(Succeed())
 			Eventually(k8sClient.Get).WithArguments(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{}).
 				WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
 			r := &ManagementReconciler{Client: k8sClient}
-			req, err := labels.NewRequirement(kcmv1.CAPIProviderLabelKey, selection.Exists, nil)
+			req, err := labels.NewRequirement(clusterapiv1.ProviderNameLabel, selection.Exists, nil)
 			Expect(err).NotTo(HaveOccurred())
 			sel := labels.NewSelector().Add(*req)
-			Eventually(pollRemoveCRDs(r, sel)).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			Expect(r.removeCRDsWithSelector(ctx, sel)).To(Succeed())
 
 			Eventually(func() bool {
 				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{}))
@@ -586,9 +572,7 @@ var _ = Describe("Management Controller", func() {
 
 			r := &ManagementReconciler{Client: k8sClient}
 			sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
-			requeue, err := r.removeCRDsWithSelector(ctx, sel)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(requeue).To(BeFalse())
+			Expect(r.removeCRDsWithSelector(ctx, sel)).To(Succeed())
 
 			Consistently(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{})
