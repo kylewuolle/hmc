@@ -386,6 +386,7 @@ rules:
   resources:
   - customresourcedefinitions
   verbs:
-  - list
-  - delete
   - get
+  - list
+  - watch
+  - delete

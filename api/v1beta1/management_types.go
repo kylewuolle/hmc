@@ -36,11 +36,6 @@ const (
 
 // ManagementSpec defines the desired state of Management
 type ManagementSpec struct {
-	// +optional
-
-	// Cleanup configures CRD removal behaviour when the Management object is deleted.
-	Cleanup *ManagementCleanup `json:"cleanup,omitempty"`
-
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 
@@ -49,14 +44,22 @@ type ManagementSpec struct {
 
 	// ComponentsCommonSpec defines the desired state of management components.
 	ComponentsCommonSpec `json:",inline"`
+
+	// +optional
+
+	// Cleanup configures CRD removal behaviour when the Management object is deleted.
+	// CRD deletion is issued without waiting for it to complete (fire-and-forget).
+	Cleanup ManagementCleanup `json:"cleanup,omitempty"`
 }
 
 // ManagementCleanup controls which CRDs are removed when a Management object is deleted.
+// CRD deletion is issued without waiting for it to complete (fire-and-forget).
 type ManagementCleanup struct {
 	// +optional
 
-	// CRDs indicates whether k0rdent-owned CRDs should be removed when a Management is deleted.
-	CRDs bool `json:"crds,omitempty"`
+	// K0rdentCRDs indicates whether k0rdent-owned CRDs should be removed when a Management is deleted.
+	// Note: this removes the Management CRD itself as part of the sweep.
+	K0rdentCRDs bool `json:"k0rdentCRDs,omitempty"`
 
 	// +optional
 

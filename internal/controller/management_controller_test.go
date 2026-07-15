@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -567,6 +568,9 @@ var _ = Describe("Management Controller", func() {
 				"some-other-label": "value",
 			})
 			Expect(k8sClient.Create(ctx, crd)).To(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, crd)
+			})
 			Eventually(k8sClient.Get).WithArguments(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{}).
 				WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
@@ -576,9 +580,34 @@ var _ = Describe("Management Controller", func() {
 
 			Consistently(func() error {
 				return k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), &apiextv1.CustomResourceDefinition{})
-			}).WithTimeout(2 * time.Second).WithPolling(interval).Should(Succeed())
+			}).WithTimeout(500 * time.Millisecond).WithPolling(interval).Should(Succeed())
+		})
 
+		It("skips CRDs already marked for deletion", func() {
+			const testFinalizer = "k0rdent.mirantis.com/test-finalizer"
+
+			crd := newTestCRD("in-deletion-cleanup-test.io", map[string]string{
+				kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName,
+			})
+			crd.Finalizers = []string{testFinalizer}
+			Expect(k8sClient.Create(ctx, crd)).To(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), crd)
+				crd.Finalizers = nil
+				_ = k8sClient.Update(ctx, crd)
+				_ = k8sClient.Delete(ctx, crd)
+			})
+
+			By("marking the CRD for deletion, the finalizer keeps it around")
 			Expect(k8sClient.Delete(ctx, crd)).To(Succeed())
+			Eventually(func() bool {
+				g := &apiextv1.CustomResourceDefinition{}
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(crd), g) == nil && !g.DeletionTimestamp.IsZero()
+			}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+
+			r := &ManagementReconciler{Client: k8sClient}
+			sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmv1.CoreKCMName})
+			Expect(r.removeCRDsWithSelector(ctx, sel)).To(Succeed())
 		})
 	})
 

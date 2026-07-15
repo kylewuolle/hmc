@@ -535,23 +535,25 @@ func (r *ManagementReconciler) delete(ctx context.Context, management *kcmv1.Man
 		return ctrl.Result{RequeueAfter: r.defaultRequeueTime}, nil
 	}
 
-	kcmReleaseName := config.KCMHelmReleaseName()
-	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CRDs {
-		sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: kcmReleaseName})
-		if err := r.removeCRDsWithSelector(ctx, sel); err != nil {
-			l.Error(err, "removing k0rdent CRDs")
-			return ctrl.Result{}, err
+	if cleanup := management.Spec.Cleanup; cleanup.K0rdentCRDs || cleanup.CAPIProviderCRDs {
+		if cleanup.K0rdentCRDs {
+			sel := labels.SelectorFromSet(map[string]string{kcmv1.FluxHelmChartNameKey: config.KCMHelmReleaseName()})
+			if err := r.removeCRDsWithSelector(ctx, sel); err != nil {
+				l.Error(err, "removing k0rdent CRDs")
+				return ctrl.Result{}, err
+			}
 		}
-	}
 
-	if management.Spec.Cleanup != nil && management.Spec.Cleanup.CAPIProviderCRDs {
-		req, err := labels.NewRequirement(clusterapiv1.ProviderNameLabel, selection.Exists, nil)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if err := r.removeCRDsWithSelector(ctx, labels.NewSelector().Add(*req)); err != nil {
-			l.Error(err, "removing CAPI provider CRDs")
-			return ctrl.Result{}, err
+		if cleanup.CAPIProviderCRDs {
+			req, err := labels.NewRequirement(clusterapiv1.ProviderNameLabel, selection.Exists, nil)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			if err := r.removeCRDsWithSelector(ctx, labels.NewSelector().Add(*req)); err != nil {
+				l.Error(err, "removing CAPI provider CRDs")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 	r.eventf(management, "RemovedManagement", "All KCM management components were removed")
