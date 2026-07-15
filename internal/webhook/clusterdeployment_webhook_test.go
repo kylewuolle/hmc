@@ -17,6 +17,7 @@ package webhook
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	helmcontrollerv2 "github.com/fluxcd/helm-controller/api/v2"
 	. "github.com/onsi/gomega"
@@ -1260,6 +1261,78 @@ func TestClusterDeploymentDefault(t *testing.T) {
 				g.Expect(err).To(Succeed())
 			}
 			g.Expect(tt.input).To(Equal(tt.output))
+		})
+	}
+}
+
+func TestClusterDeploymentDefaultSveltosAuditPolicy(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+
+	sveltosAuditPolicy := &kcmv1.ClusterAuditPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SveltosAuditPolicyName,
+			Namespace: clusterdeployment.DefaultNamespace,
+		},
+	}
+
+	deletedCD := clusterdeployment.NewClusterDeployment()
+	deletedCD.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+	deletedCD.Finalizers = []string{"test-finalizer"}
+
+	tests := []struct {
+		name              string
+		defaultingEnabled bool
+		input             *kcmv1.ClusterDeployment
+		existingObjects   []runtime.Object
+		expectedPolicy    string
+	}{
+		{
+			name:              "should not default when defaulting is disabled",
+			defaultingEnabled: false,
+			input:             clusterdeployment.NewClusterDeployment(),
+			existingObjects:   []runtime.Object{sveltosAuditPolicy},
+			expectedPolicy:    "",
+		},
+		{
+			name:              "should default when the policy exists in the namespace",
+			defaultingEnabled: true,
+			input:             clusterdeployment.NewClusterDeployment(),
+			existingObjects:   []runtime.Object{sveltosAuditPolicy},
+			expectedPolicy:    SveltosAuditPolicyName,
+		},
+		{
+			name:              "should not default when the policy does not exist in the namespace",
+			defaultingEnabled: true,
+			input:             clusterdeployment.NewClusterDeployment(),
+			expectedPolicy:    "",
+		},
+		{
+			name:              "should not override an explicitly set policy",
+			defaultingEnabled: true,
+			input:             clusterdeployment.NewClusterDeployment(clusterdeployment.WithClusterAuditPolicy("custom-policy")),
+			existingObjects:   []runtime.Object{sveltosAuditPolicy},
+			expectedPolicy:    "custom-policy",
+		},
+		{
+			name:              "should not default on a ClusterDeployment being deleted",
+			defaultingEnabled: true,
+			input:             deletedCD,
+			existingObjects:   []runtime.Object{sveltosAuditPolicy},
+			expectedPolicy:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithRuntimeObjects(tt.existingObjects...).
+				Build()
+			validator := &ClusterDeploymentValidator{Client: c, DefaultSveltosAuditPolicy: tt.defaultingEnabled}
+			g.Expect(validator.Default(ctx, tt.input)).To(Succeed())
+			g.Expect(tt.input.Spec.AuditPolicy).To(Equal(tt.expectedPolicy))
 		})
 	}
 }

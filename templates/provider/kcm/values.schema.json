@@ -399,6 +399,16 @@
           "type": "object"
         }
       }
+    },
+    "sveltosAudit": {
+      "description": "Sveltos audit logging settings",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Create the predefined \"sveltos-audit\" ClusterAuditPolicy and default it onto ClusterDeployments in namespaces where the policy exists, enabling API-server audit logging of Sveltos resources on deployed clusters",
+          "type": "boolean"
+        }
+      }
     }
   }
 }

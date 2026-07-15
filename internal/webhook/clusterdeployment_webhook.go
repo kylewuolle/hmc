@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/equality"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,18 @@ type ClusterDeploymentValidator struct {
 
 	SystemNamespace            string
 	ValidateClusterUpgradePath bool
+
+	// DefaultSveltosAuditPolicy makes the defaulter set spec.auditPolicy to
+	// the predefined Sveltos audit ClusterAuditPolicy (if one exists in the
+	// ClusterDeployment's namespace) on ClusterDeployments that do not
+	// reference any audit policy.
+	DefaultSveltosAuditPolicy bool
 }
+
+// SveltosAuditPolicyName is the name of the predefined [kcmv1.ClusterAuditPolicy]
+// holding the audit policy for Sveltos resources. The object is shipped by the
+// KCM helm chart when the sveltosAudit.enabled value is set.
+const SveltosAuditPolicyName = "sveltos-audit"
 
 const invalidClusterDeploymentMsg = "the ClusterDeployment is invalid"
 
@@ -159,6 +171,10 @@ func (v *ClusterDeploymentValidator) ValidateDelete(ctx context.Context, cluster
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (v *ClusterDeploymentValidator) Default(ctx context.Context, clusterDeployment *kcmv1.ClusterDeployment) error {
+	if err := v.defaultSveltosAuditPolicy(ctx, clusterDeployment); err != nil {
+		return err
+	}
+
 	// Only apply defaults when there's no configuration provided;
 	// if template ref is empty, then nothing to default
 	if clusterDeployment.Spec.Config != nil || clusterDeployment.Spec.Template == "" {
@@ -180,6 +196,30 @@ func (v *ClusterDeploymentValidator) Default(ctx context.Context, clusterDeploym
 
 	clusterDeployment.Spec.DryRun = true
 	clusterDeployment.Spec.Config = &apiextv1.JSON{Raw: template.Status.Config.Raw}
+
+	return nil
+}
+
+// defaultSveltosAuditPolicy sets spec.auditPolicy to [SveltosAuditPolicyName]
+// when audit policy defaulting is enabled, the ClusterDeployment references no
+// policy, and a ClusterAuditPolicy with that name exists in the
+// ClusterDeployment's namespace.
+func (v *ClusterDeploymentValidator) defaultSveltosAuditPolicy(ctx context.Context, clusterDeployment *kcmv1.ClusterDeployment) error {
+	if !v.DefaultSveltosAuditPolicy ||
+		clusterDeployment.Spec.AuditPolicy != "" ||
+		!clusterDeployment.DeletionTimestamp.IsZero() {
+		return nil
+	}
+
+	policyKey := client.ObjectKey{Namespace: clusterDeployment.Namespace, Name: SveltosAuditPolicyName}
+	if err := v.Get(ctx, policyKey, new(kcmv1.ClusterAuditPolicy)); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get ClusterAuditPolicy %s: %w", policyKey, err)
+	}
+
+	clusterDeployment.Spec.AuditPolicy = SveltosAuditPolicyName
 
 	return nil
 }

@@ -99,6 +99,7 @@ func main() {
 		validateClusterUpgradePath    bool
 		kcmTemplatesChartName         string
 		enableWebhook                 bool
+		defaultSveltosAuditPolicy     bool
 		webhookPort                   int
 		webhookCertDir                string
 		pprofBindAddress              string
@@ -141,6 +142,8 @@ func main() {
 	flag.StringVar(&kcmTemplatesChartName, "kcm-templates-chart-name", "kcm-templates",
 		"The name of the helm chart with KCM Templates.")
 	flag.BoolVar(&enableWebhook, "enable-webhook", true, "Enable admission webhook.")
+	flag.BoolVar(&defaultSveltosAuditPolicy, "default-sveltos-audit-policy", false,
+		"Default spec.auditPolicy of ClusterDeployments to the predefined Sveltos audit ClusterAuditPolicy when one exists in the ClusterDeployment's namespace. Requires the webhook to be enabled.")
 	flag.IntVar(&webhookPort, "webhook-port", 9443, "Admission webhook port.")
 	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
 		"Webhook cert dir, only used when webhook-port is specified.")
@@ -301,7 +304,7 @@ func main() {
 	}
 
 	if enableWebhook {
-		if err := setupWebhooks(mgr, systemNamespace, validateClusterUpgradePath); err != nil {
+		if err := setupWebhooks(mgr, systemNamespace, validateClusterUpgradePath, defaultSveltosAuditPolicy); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")
 			os.Exit(1)
 		}
@@ -490,10 +493,11 @@ func setupControllers(mgr ctrl.Manager, currentNamespace string, cfg config) err
 	return nil
 }
 
-func setupWebhooks(mgr ctrl.Manager, systemNamespace string, validateClusterUpgradePath bool) error {
+func setupWebhooks(mgr ctrl.Manager, systemNamespace string, validateClusterUpgradePath, defaultSveltosAuditPolicy bool) error {
 	if err := (&kcmwebhook.ClusterDeploymentValidator{
 		ValidateClusterUpgradePath: validateClusterUpgradePath,
 		SystemNamespace:            systemNamespace,
+		DefaultSveltosAuditPolicy:  defaultSveltosAuditPolicy,
 	}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "ClusterDeployment")
 		return err
