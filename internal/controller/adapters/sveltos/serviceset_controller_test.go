@@ -28,6 +28,7 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/scheme"
 	clusterapiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
@@ -1005,7 +1006,7 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 
 		It("should set the controller owner reference on the Profile when no region is in play", func() {
 			By("creating the Profile", func() {
-				Expect(reconciler.createOrUpdateProfile(ctx, cl, emptyString, &serviceSet, &profileSpec)).To(Succeed())
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, &serviceSet, &profileSpec)).To(Succeed())
 				profile = addoncontrollerv1beta1.Profile{}
 				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
 				DeferCleanup(func() {
@@ -1023,7 +1024,7 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 			By("updating the Profile", func() {
 				updatedSpec := profileSpec
 				updatedSpec.StopMatchingBehavior = addoncontrollerv1beta1.LeavePolicies
-				Expect(reconciler.createOrUpdateProfile(ctx, cl, emptyString, &serviceSet, &updatedSpec)).To(Succeed())
+				Expect(reconciler.createOrUpdateProfile(ctx, cl, &serviceSet, &updatedSpec)).To(Succeed())
 				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
 				Expect(profile.Spec.StopMatchingBehavior).To(Equal(addoncontrollerv1beta1.LeavePolicies))
 				Expect(profile.OwnerReferences).To(HaveLen(1))
@@ -1031,10 +1032,14 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 		})
 
 		It("should not set owner references on the Profile when the ServiceSet targets a region", func() {
-			const regionName = "test-region"
+			// a regional client is a separate instance, even when it points
+			// at the same cluster; owner references are gated on the client
+			// being the very same object as the reconciler's
+			rgnCl, err := client.New(config, client.Options{Scheme: scheme.Scheme})
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the Profile", func() {
-				Expect(reconciler.createOrUpdateProfile(ctx, cl, regionName, &serviceSet, &profileSpec)).To(Succeed())
+				Expect(reconciler.createOrUpdateProfile(ctx, rgnCl, &serviceSet, &profileSpec)).To(Succeed())
 				profile = addoncontrollerv1beta1.Profile{}
 				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
 				DeferCleanup(func() {
@@ -1046,7 +1051,7 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 			By("updating the Profile", func() {
 				updatedSpec := profileSpec
 				updatedSpec.StopMatchingBehavior = addoncontrollerv1beta1.LeavePolicies
-				Expect(reconciler.createOrUpdateProfile(ctx, cl, regionName, &serviceSet, &updatedSpec)).To(Succeed())
+				Expect(reconciler.createOrUpdateProfile(ctx, rgnCl, &serviceSet, &updatedSpec)).To(Succeed())
 				Expect(cl.Get(ctx, client.ObjectKeyFromObject(&serviceSet), &profile)).To(Succeed())
 				Expect(profile.Spec.StopMatchingBehavior).To(Equal(addoncontrollerv1beta1.LeavePolicies))
 				Expect(profile.OwnerReferences).To(BeEmpty())
