@@ -1031,10 +1031,10 @@ var _ = Describe("ServiceSet Controller integration tests", Ordered, func() {
 			})
 		})
 
-		It("should not set owner references on the Profile when the ServiceSet targets a region", func() {
-			// a regional client is a separate instance, even when it points
-			// at the same cluster; owner references are gated on the client
-			// being the very same object as the reconciler's
+		It("should not set owner references on the Profile when using a regional (non-management) client", func() {
+			// Simulate a regional client by creating a separate client instance (even if it points
+			// at the same API server); owner references are gated on the client being the exact
+			// same object as the reconciler's client.
 			rgnCl, err := client.New(config, client.Options{Scheme: scheme.Scheme})
 			Expect(err).NotTo(HaveOccurred())
 
