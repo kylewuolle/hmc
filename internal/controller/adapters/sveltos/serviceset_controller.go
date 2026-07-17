@@ -475,6 +475,7 @@ func (r *ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnCli
 	}
 
 	annotationsUpdated := handlePauseAnnotations(&profile.ObjectMeta, serviceSet)
+	staleOwnerRefs := !inMgmtCluster && len(profile.OwnerReferences) > 0
 
 	switch {
 	// we already excluded all errors except NotFound
@@ -495,9 +496,11 @@ func (r *ServiceSetReconciler) createOrUpdateProfile(ctx context.Context, rgnCli
 	// If profile spec is not equal to the spec we just created so
 	// we need to update it. Make sure that the empty values in `spec`
 	// are defaulted otherwise comparison will always return false.
-	case annotationsUpdated || !equality.Semantic.DeepEqual(profile.Spec, *spec):
+	case annotationsUpdated || staleOwnerRefs || !equality.Semantic.DeepEqual(profile.Spec, *spec):
 		if inMgmtCluster {
 			profile.OwnerReferences = []metav1.OwnerReference{*ownerReference}
+		} else {
+			profile.OwnerReferences = nil
 		}
 		profile.Spec = *spec
 		if err = rgnClient.Update(ctx, profile); err != nil {
