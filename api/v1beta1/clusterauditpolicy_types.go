@@ -32,8 +32,43 @@ const (
 
 // ClusterAuditPolicySpec defines the desired state of ClusterAuditPolicy
 type ClusterAuditPolicySpec struct {
+	// Log configures the kube-apiserver audit log backend on clusters this
+	// policy is applied to: where events captured by the policy are written
+	// and how the log file is rotated. When unset, the cluster template's
+	// defaults apply (typically "-", the API server's standard output).
+	// +optional
+	Log *AuditLog `json:"log,omitempty"`
+
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Policy is immutable"
+
 	// Policy contains the full content of a kubernetes [Policy] object used to configure auditing.
 	Policy Policy `json:"policy"`
+}
+
+// AuditLog configures the audit log backend of the kube-apiserver.
+type AuditLog struct {
+	// Path is the file path where the kube-apiserver writes audit events
+	// captured by the policy. "-" means standard output.
+	// +kubebuilder:validation:MinLength=1
+	Path string `json:"path"`
+
+	// MaxAge is the maximum number of days to retain old audit log files.
+	// Ignored when Path is "-".
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxAge int32 `json:"maxAge,omitempty"`
+
+	// MaxSize is the maximum size in megabytes of the audit log file before
+	// it gets rotated. Ignored when Path is "-".
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxSize int32 `json:"maxSize,omitempty"`
+
+	// MaxBackups is the maximum number of rotated audit log files to retain.
+	// Ignored when Path is "-".
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxBackups int32 `json:"maxBackups,omitempty"`
 }
 
 // Policy defines the structure of the kubernetes Policy object used to configure auditing.

@@ -10,7 +10,7 @@ proxy: # @schema description: Proxy settings; type: object
   secretName: "" # @schema description: Name of the Secret with proxy settings data; type: [string, null]
 
 sveltosAudit: # @schema description: Sveltos audit logging settings; type: object
-  enabled: false # @schema type: boolean; description: Create the predefined "sveltos-audit" ClusterAuditPolicy and default it onto ClusterDeployments in namespaces where the policy exists, enabling API-server audit logging of Sveltos resources on deployed clusters
+  enabled: true # @schema type: boolean; description: Create the predefined "sveltos-audit" ClusterAuditPolicy and default it onto ClusterDeployments in namespaces where the policy exists, enabling API-server audit logging of Sveltos resources on deployed clusters
 
 enableProvidersReload: null # @schema description: Enable automatic reload-triggering patches for CAPI provider Deployments; type: [boolean, null]
 

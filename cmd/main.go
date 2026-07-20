@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -143,7 +145,7 @@ func main() {
 		"The name of the helm chart with KCM Templates.")
 	flag.BoolVar(&enableWebhook, "enable-webhook", true, "Enable admission webhook.")
 	flag.BoolVar(&defaultSveltosAuditPolicy, "default-sveltos-audit-policy", false,
-		"Default spec.auditPolicy of ClusterDeployments to the predefined Sveltos audit ClusterAuditPolicy when one exists in the ClusterDeployment's namespace. Requires the webhook to be enabled.")
+		"Create the predefined Sveltos audit ClusterAuditPolicy in the system namespace and default spec.auditPolicy of ClusterDeployments to it when the policy exists in the ClusterDeployment's namespace. Requires the webhook to be enabled.")
 	flag.IntVar(&webhookPort, "webhook-port", 9443, "Admission webhook port.")
 	flag.StringVar(&webhookCertDir, "webhook-cert-dir", "/tmp/k8s-webhook-server/serving-certs/",
 		"Webhook cert dir, only used when webhook-port is specified.")
@@ -306,6 +308,15 @@ func main() {
 	if enableWebhook {
 		if err := setupWebhooks(mgr, systemNamespace, validateClusterUpgradePath, defaultSveltosAuditPolicy); err != nil {
 			setupLog.Error(err, "failed to setup webhooks")
+			os.Exit(1)
+		}
+	}
+
+	if defaultSveltosAuditPolicy {
+		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			return kcmwebhook.EnsureSveltosAuditPolicy(ctx, mgr.GetClient(), systemNamespace)
+		})); err != nil {
+			setupLog.Error(err, "failed to setup sveltos audit policy creation")
 			os.Exit(1)
 		}
 	}

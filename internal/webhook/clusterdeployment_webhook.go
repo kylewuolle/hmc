@@ -21,8 +21,8 @@ import (
 	"slices"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -45,8 +45,9 @@ type ClusterDeploymentValidator struct {
 }
 
 // SveltosAuditPolicyName is the name of the predefined [kcmv1.ClusterAuditPolicy]
-// holding the audit policy for Sveltos resources. The object is shipped by the
-// KCM helm chart when the sveltosAudit.enabled value is set.
+// holding the audit policy for Sveltos resources. The manager creates the object
+// in the system namespace when the --default-sveltos-audit-policy flag is set;
+// see [EnsureSveltosAuditPolicy].
 const SveltosAuditPolicyName = "sveltos-audit"
 
 const invalidClusterDeploymentMsg = "the ClusterDeployment is invalid"

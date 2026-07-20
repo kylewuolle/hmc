@@ -129,6 +129,7 @@ type (
 
 	auditConfig struct {
 		policy *auditv1.Policy
+		log    *kcmv1.AuditLog
 		hash   string
 	}
 
@@ -274,6 +275,7 @@ func (r *ClusterDeploymentReconciler) getClusterScope(ctx context.Context, cd *k
 
 		scope.audit = &auditConfig{
 			policy: clAuditPolicy.Spec.GetPolicy(),
+			log:    clAuditPolicy.Spec.Log,
 		}
 	}
 
@@ -1166,6 +1168,10 @@ func (r *ClusterDeploymentReconciler) fillClusterAuthenticationValues(scope *clu
 //	    name: audit-policy-configmap
 //	    key: policy
 //	    hash: 2loa83
+//	  logPath: /var/lib/k0s/audit-logs/audit.log
+//	  logMaxAge: 7
+//	  logMaxSize: 50
+//	  logMaxBackup: 7
 func (r *ClusterDeploymentReconciler) fillClusterAuditPolicyValues(scope *clusterScope, values map[string]any) {
 	if scope.audit == nil || scope.audit.policy == nil {
 		if auditValues, ok := values["audit"].(map[string]any); ok {
@@ -1174,20 +1180,33 @@ func (r *ClusterDeploymentReconciler) fillClusterAuditPolicyValues(scope *cluste
 		return
 	}
 
-	policyRef := map[string]any{
+	auditValues, ok := values["audit"].(map[string]any)
+	if !ok {
+		auditValues = make(map[string]any)
+	}
+
+	auditValues["policyRef"] = map[string]any{
 		"name": r.getAuditPolicyConfigMapName(scope.cd.Name),
 		"key":  auditPolicyConfigKey,
 		"hash": scope.audit.hash,
 	}
 
-	if auditValues, ok := values["audit"].(map[string]any); ok {
-		auditValues["policyRef"] = policyRef
-		values["audit"] = auditValues
-		return
+	// the policy is authoritative over its own log destination; when it
+	// carries none, template defaults or user-provided values apply
+	if log := scope.audit.log; log != nil {
+		auditValues["logPath"] = log.Path
+		if log.MaxAge > 0 {
+			auditValues["logMaxAge"] = log.MaxAge
+		}
+		if log.MaxSize > 0 {
+			auditValues["logMaxSize"] = log.MaxSize
+		}
+		if log.MaxBackups > 0 {
+			auditValues["logMaxBackup"] = log.MaxBackups
+		}
 	}
-	values["audit"] = map[string]any{
-		"policyRef": policyRef,
-	}
+
+	values["audit"] = auditValues
 }
 
 func (*ClusterDeploymentReconciler) getAuthConfigSecretName(cdName string) string {

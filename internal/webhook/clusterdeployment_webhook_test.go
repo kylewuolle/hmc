@@ -1266,8 +1266,6 @@ func TestClusterDeploymentDefault(t *testing.T) {
 }
 
 func TestClusterDeploymentDefaultSveltosAuditPolicy(t *testing.T) {
-	g := NewWithT(t)
-
 	ctx := t.Context()
 
 	sveltosAuditPolicy := &kcmv1.ClusterAuditPolicy{
@@ -1326,6 +1324,7 @@ func TestClusterDeploymentDefaultSveltosAuditPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			c := fake.NewClientBuilder().
 				WithScheme(scheme.Scheme).
 				WithRuntimeObjects(tt.existingObjects...).
